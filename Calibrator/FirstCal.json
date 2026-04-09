@@ -1,0 +1,76 @@
+{
+  "image_path": "C:\\GITHUB Repos\\RoboSim_Navigation_Trainer\\Calibrator\\calibration_snapshot.png",
+  "image_width": 1920,
+  "image_height": 1080,
+  "whiskers": {
+    "-90": {
+      "points": []
+    },
+    "-60": {
+      "points": []
+    },
+    "-45": {
+      "points": []
+    },
+    "-30": {
+      "points": []
+    },
+    "-15": {
+      "points": []
+    },
+    "0": {
+      "points": []
+    },
+    "15": {
+      "points": []
+    },
+    "30": {
+      "points": []
+    },
+    "45": {
+      "points": []
+    },
+    "60": {
+      "points": []
+    },
+    "90": {
+      "points": [
+        {
+          "pixel_x": 590.4666854013386,
+          "pixel_y": 986.9809250824035,
+          "distance_mm": 75.0
+        },
+        {
+          "pixel_x": 513.127065713272,
+          "pixel_y": 943.6313293336783,
+          "distance_mm": 100.0
+        },
+        {
+          "pixel_x": 420.1421828322565,
+          "pixel_y": 869.1242116405568,
+          "distance_mm": 150.0
+        },
+        {
+          "pixel_x": 366.2713744914851,
+          "pixel_y": 812.0040767334908,
+          "distance_mm": 200.0
+        },
+        {
+          "pixel_x": 333.2950666811288,
+          "pixel_y": 770.0712408758773,
+          "distance_mm": 250.0
+        },
+        {
+          "pixel_x": 312.1250912967025,
+          "pixel_y": 739.1305076217158,
+          "distance_mm": 300.0
+        },
+        {
+          "pixel_x": 288.10531153360347,
+          "pixel_y": 695.1620972079074,
+          "distance_mm": 400.0
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,12 @@
+# Runtime/output artifacts
+logs/
+dagger_snapshots/
+trained_models/
+
+# Python cache
+__pycache__/
+*.py[cod]
+
+# VS Code artifacts
+.vscode/
+*.code-workspace
