@@ -862,16 +862,10 @@ class SimulatorApp:
                 "root.destroy()\n"
             )
             try:
-                proc = subprocess.run(
-                    [sys.executable, "-c", script, json.dumps(payload)],
-                    capture_output=True,
-                    text=True,
-                    timeout=180,
-                    check=False,
-                )
-                if proc.returncode != 0:
+                output = self._run_dialog_subprocess(script=script, payload=payload, timeout_s=180.0)
+                if output is None:
                     return None
-                return proc.stdout.strip()
+                return output
             except Exception:
                 return None
 
@@ -913,16 +907,10 @@ class SimulatorApp:
                 "root.destroy()\n"
             )
             try:
-                proc = subprocess.run(
-                    [sys.executable, "-c", script, json.dumps(payload)],
-                    capture_output=True,
-                    text=True,
-                    timeout=180,
-                    check=False,
-                )
-                if proc.returncode != 0:
+                output = self._run_dialog_subprocess(script=script, payload=payload, timeout_s=180.0)
+                if output is None:
                     return default_on_error
-                return proc.stdout.strip() == "1"
+                return output == "1"
             except Exception:
                 return default_on_error
 
@@ -936,6 +924,38 @@ class SimulatorApp:
             return bool(go)
         except Exception:
             return default_on_error
+
+    def _run_dialog_subprocess(self, script: str, payload: dict, timeout_s: float) -> Optional[str]:
+        """Run Tk dialog subprocess while keeping pygame event loop alive.
+
+        The call remains modal from a UX standpoint, but we keep pumping SDL events
+        so the simulator window does not appear hung on Linux window managers.
+        """
+        proc = subprocess.Popen(
+            [sys.executable, "-c", script, json.dumps(payload)],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        start = time.time()
+
+        while proc.poll() is None:
+            try:
+                pygame.event.pump()
+            except Exception:
+                pass
+            if (time.time() - start) > timeout_s:
+                try:
+                    proc.kill()
+                except Exception:
+                    pass
+                return None
+            time.sleep(0.01)
+
+        out, _err = proc.communicate()
+        if proc.returncode != 0:
+            return None
+        return (out or "").strip()
 
     def _run_next_train_me_case(self) -> bool:
         """Load the next queued train-me map and prompt for human navigation."""
