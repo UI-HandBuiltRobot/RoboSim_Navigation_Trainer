@@ -1,6 +1,8 @@
 import json
 import math
 import random
+import subprocess
+import sys
 import time
 from collections import deque
 from datetime import datetime
@@ -724,17 +726,12 @@ class SimulatorApp:
             self.model_status = "File picker unavailable"
             return False
 
-        try:
-            root = tk.Tk()
-            root.withdraw()
-            root.attributes("-topmost", True)
-            model_path_str = filedialog.askopenfilename(
-                title="Select trained model",
-                initialdir=str(self.model_dir),
-                filetypes=[("Model files", "*.json *.zip"), ("IL JSON", "*.json"), ("PPO ZIP", "*.zip"), ("All files", "*.*")],
-            )
-            root.destroy()
-        except Exception:
+        model_path_str = self._safe_askopenfilename(
+            title="Select trained model",
+            initialdir=str(self.model_dir),
+            filetypes=[("Model files", "*.json *.zip"), ("IL JSON", "*.json"), ("PPO ZIP", "*.zip"), ("All files", "*.*")],
+        )
+        if model_path_str is None:
             self.model_status = "File picker failed"
             return False
 
@@ -827,20 +824,118 @@ class SimulatorApp:
         if messagebox is None or tk is None:
             return True
 
+        res = self._safe_askyesno(
+            title="Train-Me Queue",
+            message=(
+                f"There are {len(self.train_me_queue)} queued train-me cases.\n"
+                "Do you want to go through the next case now?"
+            ),
+            default_on_error=True,
+        )
+        return True if res is None else bool(res)
+
+    def _safe_askopenfilename(self, title: str, initialdir: str, filetypes: List[Tuple[str, str]]) -> Optional[str]:
+        """Open a file picker without freezing the pygame loop on Linux.
+
+        On Linux, Tk + SDL windows can deadlock when both run in one process.
+        To avoid this, run the file dialog in a short-lived Python subprocess.
+        """
+        if filedialog is None or tk is None:
+            return None
+
+        if sys.platform.startswith("linux"):
+            payload = {
+                "title": title,
+                "initialdir": initialdir,
+                "filetypes": filetypes,
+            }
+            script = (
+                "import json,sys\n"
+                "import tkinter as tk\n"
+                "from tkinter import filedialog\n"
+                "cfg=json.loads(sys.argv[1])\n"
+                "root=tk.Tk()\n"
+                "root.withdraw()\n"
+                "root.update_idletasks()\n"
+                "path=filedialog.askopenfilename(title=cfg['title'], initialdir=cfg['initialdir'], filetypes=cfg['filetypes'])\n"
+                "print(path or '')\n"
+                "root.destroy()\n"
+            )
+            try:
+                proc = subprocess.run(
+                    [sys.executable, "-c", script, json.dumps(payload)],
+                    capture_output=True,
+                    text=True,
+                    timeout=180,
+                    check=False,
+                )
+                if proc.returncode != 0:
+                    return None
+                return proc.stdout.strip()
+            except Exception:
+                return None
+
         try:
             root = tk.Tk()
             root.withdraw()
             root.attributes("-topmost", True)
-            go = messagebox.askyesno(
-                "Train-Me Queue",
-                f"There are {len(self.train_me_queue)} queued train-me cases.\n"
-                "Do you want to go through the next case now?",
-                parent=root,
+            root.update_idletasks()
+            path = filedialog.askopenfilename(
+                title=title,
+                initialdir=initialdir,
+                filetypes=filetypes,
             )
             root.destroy()
-            return go
+            return path
         except Exception:
-            return True
+            return None
+
+    def _safe_askyesno(self, title: str, message: str, default_on_error: bool) -> Optional[bool]:
+        """Open a yes/no dialog safely; Linux uses subprocess isolation."""
+        if messagebox is None or tk is None:
+            return None
+
+        if sys.platform.startswith("linux"):
+            payload = {
+                "title": title,
+                "message": message,
+            }
+            script = (
+                "import json,sys\n"
+                "import tkinter as tk\n"
+                "from tkinter import messagebox\n"
+                "cfg=json.loads(sys.argv[1])\n"
+                "root=tk.Tk()\n"
+                "root.withdraw()\n"
+                "root.update_idletasks()\n"
+                "ans=messagebox.askyesno(cfg['title'], cfg['message'], parent=root)\n"
+                "print('1' if ans else '0')\n"
+                "root.destroy()\n"
+            )
+            try:
+                proc = subprocess.run(
+                    [sys.executable, "-c", script, json.dumps(payload)],
+                    capture_output=True,
+                    text=True,
+                    timeout=180,
+                    check=False,
+                )
+                if proc.returncode != 0:
+                    return default_on_error
+                return proc.stdout.strip() == "1"
+            except Exception:
+                return default_on_error
+
+        try:
+            root = tk.Tk()
+            root.withdraw()
+            root.attributes("-topmost", True)
+            root.update_idletasks()
+            go = messagebox.askyesno(title, message, parent=root)
+            root.destroy()
+            return bool(go)
+        except Exception:
+            return default_on_error
 
     def _run_next_train_me_case(self) -> bool:
         """Load the next queued train-me map and prompt for human navigation."""
