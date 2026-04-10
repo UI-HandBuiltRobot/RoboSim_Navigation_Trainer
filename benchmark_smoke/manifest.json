@@ -1,0 +1,15 @@
+{
+  "generated_at": "2026-04-10T15:17:17.117474",
+  "num_maps": 5,
+  "min_obstacles": 15,
+  "max_obstacles": 18,
+  "base_seed": 123,
+  "control_mode": "heading_drive",
+  "files": [
+    "map_000.json",
+    "map_001.json",
+    "map_002.json",
+    "map_003.json",
+    "map_004.json"
+  ]
+}

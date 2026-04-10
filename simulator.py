@@ -11,6 +11,21 @@ import numpy as np
 import pygame
 
 try:
+    from stable_baselines3 import PPO
+except ImportError:
+    PPO = None
+from sim_core import (
+    ROOM_HEIGHT,
+    ROOM_WIDTH,
+    TARGET_REACH_RADIUS,
+    WHISKER_ANGLES,
+    WHISKER_MAX_LENGTH,
+    Robot,
+    generate_obstacles,
+    generate_target,
+)
+
+try:
     import tkinter as tk
     from tkinter import filedialog, messagebox
 except Exception:
@@ -19,403 +34,11 @@ except Exception:
     messagebox = None
 
 
+
+    # Refactor verification: simulator runtime/UI behavior is intentionally preserved;
+    # only shared simulation logic was moved into sim_core.py.
+
 Vec2 = np.ndarray
-
-
-class Robot:
-    ROOM_WIDTH_M = 5.0
-    ROOM_HEIGHT_M = 3.0
-
-    BODY_WIDTH_M = 0.20
-    BODY_LENGTH_M = 0.25
-    AXIS_ARROW_LEN_M = 0.10
-
-    WHISKER_ANGLES_DEG = [-90, -60, -45, -30, -15, 0, 15, 30, 45, 60, 90]
-    WHISKER_MAX_LEN_M = 0.50
-
-    KEYBOARD_DRIVE_SPEED_MPS = 0.20
-    KEYBOARD_ROTATE_RATE_DPS = 20.0
-    GAMEPAD_MAX_DRIVE_SPEED_MPS = 0.40
-    GAMEPAD_MAX_ROTATE_RATE_DPS = 40.0
-
-    CLEARANCE_FROM_WALLS_M = 0.30
-
-    def __init__(self) -> None:
-        self.x = 0.0
-        self.y = 0.0
-        self.heading_deg = 0.0
-
-        self.control_mode = "heading_drive"
-        self.drive_command: Dict[str, float] = {"rotation_rate": 0.0, "drive_speed": 0.0}
-
-        self.whisker_lengths: List[float] = [self.WHISKER_MAX_LEN_M for _ in self.WHISKER_ANGLES_DEG]
-        self.robot_pose: Dict[str, float] = {"x": 0.0, "y": 0.0, "heading": 0.0}
-        self.heading_to_target_deg = 0.0
-        self.collision_flag = False
-
-        self.collision_flash_timer = 0.0
-
-        self.collision_radius = 0.5 * math.hypot(self.BODY_WIDTH_M, self.BODY_LENGTH_M)
-
-        self.reset_random_pose()
-
-    @staticmethod
-    def _deg_to_rad(deg: float) -> float:
-        return math.radians(deg)
-
-    def _basis_vectors(self) -> Tuple[Vec2, Vec2]:
-        # X-axis: forward, Y-axis: left
-        theta = self._deg_to_rad(self.heading_deg)
-        local_x = np.array([math.sin(theta), math.cos(theta)], dtype=float)  # forward
-        local_y = np.array([-math.cos(theta), math.sin(theta)], dtype=float)  # left
-        return local_x, local_y
-
-    def forward_vector(self) -> Vec2:
-        local_x, _ = self._basis_vectors()
-        return local_x
-
-    @staticmethod
-    def _apply_deadband(value: float, deadband: float = 0.05) -> float:
-        """Apply deadband to controller input."""
-        if abs(value) < deadband:
-            return 0.0
-        if value > 0:
-            return (value - deadband) / (1.0 - deadband)
-        else:
-            return (value + deadband) / (1.0 - deadband)
-
-    @staticmethod
-    def _shape_gamepad_axis(value: float) -> float:
-        """Apply cubic axis shaping for finer low-end control."""
-        return value * value * value
-
-    def reset_random_pose(self) -> None:
-        self.x = random.uniform(self.CLEARANCE_FROM_WALLS_M, self.ROOM_WIDTH_M - self.CLEARANCE_FROM_WALLS_M)
-        self.y = random.uniform(self.CLEARANCE_FROM_WALLS_M, self.ROOM_HEIGHT_M - self.CLEARANCE_FROM_WALLS_M)
-
-        if self.control_mode in ("heading_drive", "heading_strafe"):
-            # For heading-control episodes, initialize with truly random heading.
-            self.heading_deg = random.uniform(-180.0, 180.0)
-        else:
-            to_center = np.array([
-                0.5 * self.ROOM_WIDTH_M - self.x,
-                0.5 * self.ROOM_HEIGHT_M - self.y,
-            ], dtype=float)
-            base_heading = math.degrees(math.atan2(to_center[0], to_center[1]))
-
-            for _ in range(200):
-                candidate = base_heading + random.uniform(-60.0, 60.0)
-                self.heading_deg = candidate
-                fwd = self.forward_vector()
-                margin = 0.20
-                projected = np.array([self.x, self.y], dtype=float) + fwd * margin
-                if 0.0 < projected[0] < self.ROOM_WIDTH_M and 0.0 < projected[1] < self.ROOM_HEIGHT_M:
-                    break
-
-        if self.control_mode == "heading_drive":
-            self.drive_command = {"rotation_rate": 0.0, "drive_speed": 0.0}
-        elif self.control_mode == "heading_strafe":
-            self.drive_command = {"rotation_rate": 0.0, "vx": 0.0, "vy": 0.0}
-        else:
-            self.drive_command = {"vx": 0.0, "vy": 0.0}
-        self.whisker_lengths = [self.WHISKER_MAX_LEN_M for _ in self.WHISKER_ANGLES_DEG]
-        self.robot_pose = {"x": self.x, "y": self.y, "heading": self.heading_deg}
-        self.collision_flag = False
-        self.collision_flash_timer = 0.0
-
-    def compute_heading_to_target(self, target_x: float, target_y: float) -> float:
-        """Compute the angle to the target in the robot's local frame (degrees)."""
-        dx = target_x - self.x
-        dy = target_y - self.y
-        world_angle_to_target_deg = math.degrees(math.atan2(dx, dy))
-        heading_to_target = world_angle_to_target_deg - self.heading_deg
-        heading_to_target = ((heading_to_target + 180.0) % 360.0) - 180.0
-        return heading_to_target
-
-    def set_control_mode(self, mode: str) -> None:
-        if mode not in ("heading_drive", "xy_strafe", "heading_strafe"):
-            return
-        self.control_mode = mode
-        if mode == "heading_drive":
-            self.drive_command = {"rotation_rate": 0.0, "drive_speed": 0.0}
-        elif mode == "heading_strafe":
-            self.drive_command = {"rotation_rate": 0.0, "vx": 0.0, "vy": 0.0}
-        else:
-            self.drive_command = {"vx": 0.0, "vy": 0.0}
-
-    def update_command_from_keys(self, keys: pygame.key.ScancodeWrapper) -> None:
-        if self.control_mode == "heading_drive":
-            drive_speed = 0.0
-            rotation_rate = 0.0
-            if keys[pygame.K_UP]:
-                drive_speed += self.KEYBOARD_DRIVE_SPEED_MPS
-            if keys[pygame.K_DOWN]:
-                drive_speed -= self.KEYBOARD_DRIVE_SPEED_MPS
-            if keys[pygame.K_LEFT]:
-                rotation_rate -= self.KEYBOARD_ROTATE_RATE_DPS
-            if keys[pygame.K_RIGHT]:
-                rotation_rate += self.KEYBOARD_ROTATE_RATE_DPS
-            self.drive_command = {
-                "rotation_rate": rotation_rate,
-                "drive_speed": drive_speed,
-            }
-        elif self.control_mode == "heading_strafe":
-            rotation_rate = 0.0
-            vx = 0.0
-            vy = 0.0
-            if keys[pygame.K_UP]:
-                vx += self.KEYBOARD_DRIVE_SPEED_MPS
-            if keys[pygame.K_DOWN]:
-                vx -= self.KEYBOARD_DRIVE_SPEED_MPS
-            if keys[pygame.K_LEFT]:
-                rotation_rate -= self.KEYBOARD_ROTATE_RATE_DPS
-            if keys[pygame.K_RIGHT]:
-                rotation_rate += self.KEYBOARD_ROTATE_RATE_DPS
-            if keys[pygame.K_a]:
-                vy += self.KEYBOARD_DRIVE_SPEED_MPS
-            if keys[pygame.K_d]:
-                vy -= self.KEYBOARD_DRIVE_SPEED_MPS
-            self.drive_command = {"rotation_rate": rotation_rate, "vx": vx, "vy": vy}
-        else:
-            vx = 0.0
-            vy = 0.0
-            if keys[pygame.K_LEFT]:
-                vy += self.KEYBOARD_DRIVE_SPEED_MPS
-            if keys[pygame.K_RIGHT]:
-                vy -= self.KEYBOARD_DRIVE_SPEED_MPS
-            if keys[pygame.K_UP]:
-                vx += self.KEYBOARD_DRIVE_SPEED_MPS
-            if keys[pygame.K_DOWN]:
-                vx -= self.KEYBOARD_DRIVE_SPEED_MPS
-            self.drive_command = {"vx": vx, "vy": vy}
-
-    def update_command_from_gamepad(self, joystick: pygame.joystick.Joystick) -> None:
-        if joystick is None:
-            return
-
-        axis_count = joystick.get_numaxes()
-
-        if self.control_mode == "heading_drive":
-            drive_speed = 0.0
-            rotation_rate = 0.0
-
-            if axis_count > 1:
-                y_axis = self._shape_gamepad_axis(self._apply_deadband(joystick.get_axis(1)))
-                drive_speed = -y_axis * self.GAMEPAD_MAX_DRIVE_SPEED_MPS
-
-            if axis_count > 2:
-                z_axis = self._shape_gamepad_axis(self._apply_deadband(joystick.get_axis(2)))
-                rotation_rate = z_axis * self.GAMEPAD_MAX_ROTATE_RATE_DPS
-
-            self.drive_command = {
-                "rotation_rate": rotation_rate,
-                "drive_speed": drive_speed,
-            }
-        elif self.control_mode == "heading_strafe":
-            rotation_rate = 0.0
-            vx = 0.0
-            vy = 0.0
-
-            if axis_count > 0:
-                x_axis = self._shape_gamepad_axis(self._apply_deadband(joystick.get_axis(0)))
-                vy = -x_axis * self.GAMEPAD_MAX_DRIVE_SPEED_MPS
-
-            if axis_count > 1:
-                y_axis = self._shape_gamepad_axis(self._apply_deadband(joystick.get_axis(1)))
-                vx = -y_axis * self.GAMEPAD_MAX_DRIVE_SPEED_MPS
-
-            if axis_count > 2:
-                z_axis = self._shape_gamepad_axis(self._apply_deadband(joystick.get_axis(2)))
-                rotation_rate = z_axis * self.GAMEPAD_MAX_ROTATE_RATE_DPS
-
-            self.drive_command = {"rotation_rate": rotation_rate, "vx": vx, "vy": vy}
-        else:
-            vx = 0.0
-            vy = 0.0
-
-            if axis_count > 2:
-                z_axis = self._shape_gamepad_axis(self._apply_deadband(joystick.get_axis(2)))
-                vy = z_axis * self.GAMEPAD_MAX_DRIVE_SPEED_MPS
-
-            if axis_count > 1:
-                y_axis = self._shape_gamepad_axis(self._apply_deadband(joystick.get_axis(1)))
-                vx = -y_axis * self.GAMEPAD_MAX_DRIVE_SPEED_MPS
-
-            self.drive_command = {"vx": vx, "vy": vy}
-
-    def integrate(self, dt: float) -> None:
-        local_x, local_y = self._basis_vectors()
-
-        if self.control_mode == "heading_drive":
-            rot_dps = self.drive_command.get("rotation_rate", 0.0)
-            drive_speed = self.drive_command.get("drive_speed", 0.0)
-            self.heading_deg += rot_dps * dt
-            self.heading_deg = ((self.heading_deg + 180.0) % 360.0) - 180.0
-            displacement = local_x * drive_speed * dt
-        elif self.control_mode == "heading_strafe":
-            rot_dps = self.drive_command.get("rotation_rate", 0.0)
-            vx = self.drive_command.get("vx", 0.0)
-            vy = self.drive_command.get("vy", 0.0)
-            self.heading_deg += rot_dps * dt
-            self.heading_deg = ((self.heading_deg + 180.0) % 360.0) - 180.0
-            local_x, local_y = self._basis_vectors()
-            displacement = (local_x * vx + local_y * vy) * dt
-        else:
-            vx = self.drive_command.get("vx", 0.0)
-            vy = self.drive_command.get("vy", 0.0)
-            displacement = (local_x * vx + local_y * vy) * dt
-
-        self.x += float(displacement[0])
-        self.y += float(displacement[1])
-
-    @staticmethod
-    def _ray_circle_intersection(origin: Vec2, direction: Vec2, center: Vec2, radius: float) -> Optional[float]:
-        # Solve ||origin + t*direction - center||^2 = radius^2 for t >= 0.
-        oc = origin - center
-        a = float(np.dot(direction, direction))
-        b = 2.0 * float(np.dot(direction, oc))
-        c = float(np.dot(oc, oc) - radius * radius)
-
-        disc = b * b - 4.0 * a * c
-        if disc < 0.0:
-            return None
-
-        sqrt_disc = math.sqrt(disc)
-        t1 = (-b - sqrt_disc) / (2.0 * a)
-        t2 = (-b + sqrt_disc) / (2.0 * a)
-
-        ts = [t for t in (t1, t2) if t >= 0.0]
-        if not ts:
-            return None
-        return min(ts)
-
-    @staticmethod
-    def _ray_segment_intersection(origin: Vec2, direction: Vec2, p1: Vec2, p2: Vec2) -> Optional[float]:
-        # Intersect origin + t*direction with p1 + u*(p2-p1), t>=0 and 0<=u<=1.
-        v1 = origin - p1
-        v2 = p2 - p1
-        denom = direction[0] * v2[1] - direction[1] * v2[0]
-
-        if abs(denom) < 1e-10:
-            return None
-
-        t = (v2[0] * v1[1] - v2[1] * v1[0]) / denom
-        u = (direction[0] * v1[1] - direction[1] * v1[0]) / denom
-
-        if t >= 0.0 and 0.0 <= u <= 1.0:
-            return t
-        return None
-
-    def compute_whiskers(self, obstacles: List[Tuple[float, float, float]]) -> List[Tuple[Vec2, Vec2, bool]]:
-        local_x, local_y = self._basis_vectors()
-        origin = np.array([self.x, self.y], dtype=float) + local_x * 0.12
-        whisker_segments: List[Tuple[Vec2, Vec2, bool]] = []
-        lengths: List[float] = []
-
-        wall_segments = [
-            (np.array([0.0, 0.0], dtype=float), np.array([self.ROOM_WIDTH_M, 0.0], dtype=float)),
-            (np.array([self.ROOM_WIDTH_M, 0.0], dtype=float), np.array([self.ROOM_WIDTH_M, self.ROOM_HEIGHT_M], dtype=float)),
-            (np.array([self.ROOM_WIDTH_M, self.ROOM_HEIGHT_M], dtype=float), np.array([0.0, self.ROOM_HEIGHT_M], dtype=float)),
-            (np.array([0.0, self.ROOM_HEIGHT_M], dtype=float), np.array([0.0, 0.0], dtype=float)),
-        ]
-
-        for angle_deg in self.WHISKER_ANGLES_DEG:
-            world_deg = self.heading_deg + angle_deg
-            theta = self._deg_to_rad(world_deg)
-            direction = np.array([math.sin(theta), math.cos(theta)], dtype=float)
-
-            min_dist = self.WHISKER_MAX_LEN_M
-            hit = False
-
-            for ox, oy, radius in obstacles:
-                center = np.array([ox, oy], dtype=float)
-                d = self._ray_circle_intersection(origin, direction, center, radius)
-                if d is not None and 0.0 <= d < min_dist:
-                    min_dist = d
-                    hit = True
-
-            for p1, p2 in wall_segments:
-                d = self._ray_segment_intersection(origin, direction, p1, p2)
-                if d is not None and 0.0 <= d < min_dist:
-                    min_dist = d
-                    hit = True
-
-            endpoint = origin + direction * min_dist
-            whisker_segments.append((origin.copy(), endpoint, hit))
-            lengths.append(float(min_dist))
-
-        self.whisker_lengths = lengths
-        return whisker_segments
-
-    def check_collision(self, obstacles: List[Tuple[float, float, float]]) -> bool:
-        collided = False
-
-        if self.x - self.collision_radius < 0.0:
-            collided = True
-        if self.x + self.collision_radius > self.ROOM_WIDTH_M:
-            collided = True
-        if self.y - self.collision_radius < 0.0:
-            collided = True
-        if self.y + self.collision_radius > self.ROOM_HEIGHT_M:
-            collided = True
-
-        for ox, oy, radius in obstacles:
-            dx = self.x - ox
-            dy = self.y - oy
-            if dx * dx + dy * dy <= (self.collision_radius + radius) ** 2:
-                collided = True
-                break
-
-        if collided:
-            self.collision_flag = True
-            self.collision_flash_timer = 0.20
-            # Stop immediately upon collision.
-            if self.control_mode == "heading_drive":
-                self.drive_command = {"rotation_rate": 0.0, "drive_speed": 0.0}
-            elif self.control_mode == "heading_strafe":
-                self.drive_command = {"rotation_rate": 0.0, "vx": 0.0, "vy": 0.0}
-            else:
-                self.drive_command = {"vx": 0.0, "vy": 0.0}
-
-        return collided
-
-    def step(self, dt: float, obstacles: List[Tuple[float, float, float]]) -> List[Tuple[Vec2, Vec2, bool]]:
-        prev_x, prev_y, prev_h = self.x, self.y, self.heading_deg
-
-        self.integrate(dt)
-
-        if self.check_collision(obstacles):
-            self.x, self.y, self.heading_deg = prev_x, prev_y, prev_h
-
-        whiskers = self.compute_whiskers(obstacles)
-
-        if self.collision_flash_timer > 0.0:
-            self.collision_flash_timer = max(0.0, self.collision_flash_timer - dt)
-
-        self.robot_pose = {"x": self.x, "y": self.y, "heading": self.heading_deg}
-
-        return whiskers
-
-    def update_heading_to_target(self, target: Optional[Tuple[float, float, float]]) -> None:
-        """Update heading_to_target based on target position."""
-        if target is None:
-            self.heading_to_target_deg = 0.0
-        else:
-            tx, ty, _ = target
-            self.heading_to_target_deg = self.compute_heading_to_target(tx, ty)
-
-    def body_corners_world(self) -> List[Vec2]:
-        local_x, local_y = self._basis_vectors()
-        center = np.array([self.x, self.y], dtype=float)
-        hx = 0.5 * self.BODY_LENGTH_M
-        hy = 0.5 * self.BODY_WIDTH_M
-
-        return [
-            center + (+hx * local_x) + (+hy * local_y),
-            center + (-hx * local_x) + (+hy * local_y),
-            center + (-hx * local_x) + (-hy * local_y),
-            center + (+hx * local_x) + (-hy * local_y),
-        ]
 
 
 class SimulatorApp:
@@ -435,7 +58,7 @@ class SimulatorApp:
     OBSTACLE_COLOR = (120, 120, 130)
 
     FPS = 30
-    GOAL_REACH_RADIUS_M = 0.25
+    GOAL_REACH_RADIUS_M = TARGET_REACH_RADIUS
 
     def __init__(self) -> None:
         pygame.init()
@@ -467,6 +90,7 @@ class SimulatorApp:
         self.panel_w = 380
 
         self.robot = Robot()
+        self.rng = np.random.default_rng()
         self.prev_control_mode = self.robot.control_mode
         self.obstacles: List[Tuple[float, float, float]] = []
         self.target: Optional[Tuple[float, float, float]] = None
@@ -491,6 +115,8 @@ class SimulatorApp:
 
         self.model_dir = Path.cwd() / "trained_models"
         self.loaded_model: Optional[Dict[str, np.ndarray]] = None
+        self.loaded_model_ppo: Optional[PPO] = None
+        self.loaded_model_type: Optional[str] = None  # "il" or "ppo"
         self.loaded_model_mode: Optional[str] = None
         self.selected_model_paths: Dict[str, Path] = {}
         self.model_status = "No model loaded"
@@ -755,72 +381,37 @@ class SimulatorApp:
         ]
 
     def _spawn_obstacles(self, n_obs: int) -> List[Tuple[float, float, float]]:
-        obstacles: List[Tuple[float, float, float]] = []
-        radius = 0.05
-
-        robot_center = np.array([self.robot.x, self.robot.y], dtype=float)
-        robot_edges = self._robot_edge_segments()
-
-        for _ in range(2000):
-            if len(obstacles) >= n_obs:
-                break
-
-            ox = random.uniform(radius, Robot.ROOM_WIDTH_M - radius)
-            oy = random.uniform(radius, Robot.ROOM_HEIGHT_M - radius)
-            center = np.array([ox, oy], dtype=float)
-
-            valid = True
-
-            for ex, ey, er in obstacles:
-                d = math.hypot(ox - ex, oy - ey)
-                if d < (radius + er):
-                    valid = False
-                    break
-            if not valid:
-                continue
-
-            # Enforce obstacle edge to robot edge clearance at spawn.
-            center_dist_to_robot = float(np.linalg.norm(center - robot_center))
-            if center_dist_to_robot < self.robot.collision_radius + radius + 0.20:
-                valid = False
-            else:
-                min_seg_dist = min(self._point_to_segment_distance(center, a, b) for a, b in robot_edges)
-                if min_seg_dist < radius + 0.20:
-                    valid = False
-
-            if valid:
-                obstacles.append((ox, oy, radius))
-
-        return obstacles
+        robot_pose = {"x": self.robot.x, "y": self.robot.y, "heading": self.robot.heading_deg}
+        obs = generate_obstacles(
+            rng=self.rng,
+            room_w=ROOM_WIDTH,
+            room_h=ROOM_HEIGHT,
+            robot_pose=robot_pose,
+            n_obs=n_obs,
+            obstacle_radius=0.05,
+            robot_collision_radius=self.robot.collision_radius,
+            robot_body_length=self.robot.BODY_LENGTH_M,
+            robot_body_width=self.robot.BODY_WIDTH_M,
+        )
+        return [(float(o["x"]), float(o["y"]), float(o["radius"])) for o in obs]
 
     def _spawn_target(self, obstacles: List[Tuple[float, float, float]]) -> Optional[Tuple[float, float, float]]:
-        target_r = 0.075
-
-        for _ in range(3000):
-            tx = random.uniform(0.30 + target_r, Robot.ROOM_WIDTH_M - 0.30 - target_r)
-            ty = random.uniform(0.30 + target_r, Robot.ROOM_HEIGHT_M - 0.30 - target_r)
-
-            ok = True
-            for ox, oy, orad in obstacles:
-                d = math.hypot(tx - ox, ty - oy)
-                if d < target_r + orad + 0.30:
-                    ok = False
-                    break
-            if not ok:
-                continue
-
-            dr = math.hypot(tx - self.robot.x, ty - self.robot.y)
-            if dr < 0.50 + target_r:
-                continue
-
-            return tx, ty, target_r
-
-        return None
+        obstacle_dicts = [{"x": ox, "y": oy, "radius": orad} for ox, oy, orad in obstacles]
+        robot_pose = {"x": self.robot.x, "y": self.robot.y, "heading": self.robot.heading_deg}
+        tgt = generate_target(
+            rng=self.rng,
+            room_w=ROOM_WIDTH,
+            room_h=ROOM_HEIGHT,
+            obstacles=obstacle_dicts,
+            robot_pose=robot_pose,
+            target_r=0.075,
+        )
+        return float(tgt["x"]), float(tgt["y"]), float(tgt["radius"])
 
     def new_episode(self) -> None:
         self.active_train_me_case_seq = None
         self.obstacle_detected_timers = {}
-        self.robot.reset_random_pose()
+        self.robot.reset_random_pose(self.rng)
         self.collision_display_timer = 0.0
         self.in_memory_log = []
         self.log_timer = 0.0
@@ -926,6 +517,11 @@ class SimulatorApp:
         mode = self.robot.control_mode
         n_action = len(self._command_keys_for_mode(mode))
         state_dim = 12  # 11 whiskers + heading_to_target
+        if self.loaded_model_ppo is not None:
+            obs_dim = int(self.loaded_model_ppo.observation_space.shape[0])
+            denom = state_dim + n_action
+            if obs_dim >= state_dim and denom > 0 and (obs_dim + n_action) % denom == 0:
+                return max(1, (obs_dim + n_action) // denom)
         if self.loaded_model is not None:
             input_dim = int(self.loaded_model.get("input_dim", 0))
             denom = state_dim + n_action
@@ -940,14 +536,14 @@ class SimulatorApp:
             p["age"] += 1
         self.sparse_detection_points = [p for p in self.sparse_detection_points if p["age"] <= n]
 
-        heading = math.radians(self.robot.heading_deg)
-        for whisker_angle_deg, whisker_len in zip(Robot.WHISKER_ANGLES_DEG, self.robot.whisker_lengths):
-            if whisker_len >= Robot.WHISKER_MAX_LEN_M:
+        # Use exact whisker ray endpoints from physics to avoid frame/origin mismatch.
+        # compute_whiskers() uses a forward-offset ray origin, not the robot center.
+        for _start, endpoint, hit in self.whisker_segments:
+            if not hit:
                 continue
-            ray_theta = heading + math.radians(float(whisker_angle_deg))
-            hit_x = self.robot.x + math.sin(ray_theta) * whisker_len
-            hit_y = self.robot.y + math.cos(ray_theta) * whisker_len
-            self.sparse_detection_points.append({"x": float(hit_x), "y": float(hit_y), "age": 0})
+            self.sparse_detection_points.append(
+                {"x": float(endpoint[0]), "y": float(endpoint[1]), "age": 0}
+            )
 
     def _should_log(self) -> bool:
         """Determine if logging should occur at all this frame."""
@@ -1064,39 +660,62 @@ class SimulatorApp:
         return self._load_model_from_file(model_path, mode)
 
     def _load_model_from_file(self, model_path: Path, expected_mode: str) -> bool:
-        """Load a specific model file and validate it matches control mode."""
+        """Load IL JSON or PPO ZIP model and validate control mode match."""
         try:
-            with open(model_path, "r", encoding="utf-8") as f:
-                blob = json.load(f)
+            if str(model_path).lower().endswith(".zip"):
+                # Load PPO ZIP model
+                if PPO is None:
+                    self.model_status = "SB3 not installed; cannot load ZIP"
+                    return False
+                try:
+                    ppo_model = PPO.load(str(model_path.with_suffix("")))
+                    self.loaded_model_ppo = ppo_model
+                    self.loaded_model = None
+                    self.loaded_model_type = "ppo"
+                except Exception as e:
+                    self.model_status = f"PPO load error: {str(e)[:50]}"
+                    return False
+            else:
+                # Load IL JSON model
+                with open(model_path, "r", encoding="utf-8") as f:
+                    blob = json.load(f)
 
-            file_mode = blob.get("mode")
-            if file_mode is not None and file_mode != expected_mode:
-                self.loaded_model = None
-                self.loaded_model_mode = None
-                self.model_status = f"Mode mismatch in {model_path.name}"
-                return False
+                file_mode = blob.get("mode")
+                if file_mode is not None and file_mode != expected_mode:
+                    self.loaded_model = None
+                    self.loaded_model_mode = None
+                    self.model_status = f"Mode mismatch in {model_path.name}"
+                    return False
 
-            weights = [np.asarray(w, dtype=np.float64) for w in blob["weights"]]
-            biases = [np.asarray(b, dtype=np.float64) for b in blob["biases"]]
+                weights = [np.asarray(w, dtype=np.float64) for w in blob["weights"]]
+                biases = [np.asarray(b, dtype=np.float64) for b in blob["biases"]]
 
-            self.loaded_model = {
-                "weights": weights,
-                "biases": biases,
-                "x_mean": np.asarray(blob["x_mean"], dtype=np.float64),
-                "x_std": np.asarray(blob["x_std"], dtype=np.float64),
-                "y_mean": np.asarray(blob["y_mean"], dtype=np.float64),
-                "y_std": np.asarray(blob["y_std"], dtype=np.float64),
-                "input_dim": int(blob.get("input_dim", weights[0].shape[0])),
-            }
+                self.loaded_model = {
+                    "weights": weights,
+                    "biases": biases,
+                    "x_mean": np.asarray(blob["x_mean"], dtype=np.float64),
+                    "x_std": np.asarray(blob["x_std"], dtype=np.float64),
+                    "y_mean": np.asarray(blob["y_mean"], dtype=np.float64),
+                    "y_std": np.asarray(blob["y_std"], dtype=np.float64),
+                    "input_dim": int(blob.get("input_dim", weights[0].shape[0])),
+                }
+                self.loaded_model_ppo = None
+                self.loaded_model_type = "il"
+
             self.model_inference_buffer.clear()
             self.loaded_model_mode = expected_mode
             self.selected_model_paths[expected_mode] = model_path
-            self.model_status = f"Loaded {model_path.name}"
+            inferred_len = self._current_model_memory_len()
+            self.history_len = int(inferred_len)
+            self.history_buffer = deque(list(self.history_buffer)[-self.history_len:], maxlen=self.history_len)
+            self.model_status = f"Loaded {model_path.name} (mem={self.history_len})"
             return True
-        except Exception:
+        except Exception as e:
             self.loaded_model = None
+            self.loaded_model_ppo = None
+            self.loaded_model_type = None
             self.loaded_model_mode = None
-            self.model_status = "Model load failed"
+            self.model_status = f"Model load failed: {str(e)[:40]}"
             return False
 
     def _pick_model_for_current_mode(self) -> bool:
@@ -1112,7 +731,7 @@ class SimulatorApp:
             model_path_str = filedialog.askopenfilename(
                 title="Select trained model",
                 initialdir=str(self.model_dir),
-                filetypes=[("Model JSON", "*.json"), ("All files", "*.*")],
+                filetypes=[("Model files", "*.json *.zip"), ("IL JSON", "*.json"), ("PPO ZIP", "*.zip"), ("All files", "*.*")],
             )
             root.destroy()
         except Exception:
@@ -1244,26 +863,33 @@ class SimulatorApp:
         self._enqueue_train_me_case("FAIL")
 
     def _predict_model_output(self, features: np.ndarray) -> Optional[np.ndarray]:
-        """Run forward pass with saved NumPy MLP weights and denormalize outputs."""
-        if self.loaded_model is None:
-            return None
+        """Run forward pass with either IL (NumPy MLP) or PPO (SB3) model."""
+        if self.loaded_model_type == "ppo":
+            if self.loaded_model_ppo is None:
+                return None
+            # PPO.predict returns (action, _); action is already in [-1, 1] normalized space.
+            action, _ = self.loaded_model_ppo.predict(features, deterministic=True)
+            return action.reshape(1, -1)
+        else:
+            # IL (NumPy MLP) inference
+            if self.loaded_model is None:
+                return None
+            x_mean = self.loaded_model["x_mean"]
+            x_std = np.where(np.abs(self.loaded_model["x_std"]) < 1e-6, 1.0, self.loaded_model["x_std"])
+            y_mean = self.loaded_model["y_mean"]
+            y_std = np.where(np.abs(self.loaded_model["y_std"]) < 1e-6, 1.0, self.loaded_model["y_std"])
+            weights = self.loaded_model["weights"]
+            biases = self.loaded_model["biases"]
 
-        x_mean = self.loaded_model["x_mean"]
-        x_std = np.where(np.abs(self.loaded_model["x_std"]) < 1e-6, 1.0, self.loaded_model["x_std"])
-        y_mean = self.loaded_model["y_mean"]
-        y_std = np.where(np.abs(self.loaded_model["y_std"]) < 1e-6, 1.0, self.loaded_model["y_std"])
-        weights = self.loaded_model["weights"]
-        biases = self.loaded_model["biases"]
-
-        a = (features - x_mean) / x_std
-        for i in range(len(weights) - 1):
-            a = np.maximum(0.0, a @ weights[i] + biases[i])
-        out_norm = a @ weights[-1] + biases[-1]
-        return out_norm * y_std + y_mean
+            a = (features - x_mean) / x_std
+            for i in range(len(weights) - 1):
+                a = np.maximum(0.0, a @ weights[i] + biases[i])
+            out_norm = a @ weights[-1] + biases[-1]
+            return out_norm * y_std + y_mean
 
     def _update_command_from_model(self) -> None:
         """Compute drive commands from loaded model and current sensor state."""
-        if self.loaded_model is None:
+        if self.loaded_model is None and self.loaded_model_ppo is None:
             if self.robot.control_mode == "heading_drive":
                 self.robot.drive_command = {"rotation_rate": 0.0, "drive_speed": 0.0}
             elif self.robot.control_mode == "heading_strafe":
@@ -1276,8 +902,17 @@ class SimulatorApp:
         action_keys = self._command_keys_for_mode(mode)
         n_action = len(action_keys)
         state_dim = 12  # 11 whiskers + heading_to_target
-        input_dim = self.loaded_model["input_dim"]
-        history_len = (input_dim + n_action) // (state_dim + n_action)
+        
+        # Derive history_len from model type
+        if self.loaded_model_type == "ppo":
+            # PPO: obs_dim = 12*N + n_action*(N-1) = (12 + n_action)*N - n_action
+            # => N = (obs_dim + n_action) / (12 + n_action)
+            obs_dim = self.loaded_model_ppo.observation_space.shape[0]
+            history_len = (obs_dim + n_action) // (state_dim + n_action)
+        else:
+            # IL: use input_dim from model metadata
+            input_dim = self.loaded_model["input_dim"]
+            history_len = (input_dim + n_action) // (state_dim + n_action)
 
         # Capture current state (action field = last issued drive_command)
         self.model_inference_buffer.append(self._capture_timestep_record(mode))
@@ -1296,24 +931,38 @@ class SimulatorApp:
                 for k in action_keys:
                     feat.append(float(action_map.get(k, 0.0)))
 
-        features = np.asarray(feat, dtype=np.float64).reshape(1, -1)
+        features = np.asarray(feat, dtype=np.float32 if self.loaded_model_type == "ppo" else np.float64).reshape(1, -1)
         pred = self._predict_model_output(features)
         if pred is None:
             return
 
         out = pred[0]
         if self.robot.control_mode == "heading_drive":
-            drive_speed = float(np.clip(out[0], -Robot.GAMEPAD_MAX_DRIVE_SPEED_MPS, Robot.GAMEPAD_MAX_DRIVE_SPEED_MPS))
-            rotation_rate = float(np.clip(out[1], -Robot.GAMEPAD_MAX_ROTATE_RATE_DPS, Robot.GAMEPAD_MAX_ROTATE_RATE_DPS))
+            # For IL: out = [drive_speed, rotation_rate]; for PPO: out = [rotation_rate, drive_speed]
+            if self.loaded_model_type == "ppo":
+                rotation_rate = float(np.clip(out[0], -1.0, 1.0)) * Robot.GAMEPAD_MAX_ROTATE_RATE_DPS
+                drive_speed = float(np.clip(out[1], -1.0, 1.0)) * Robot.GAMEPAD_MAX_DRIVE_SPEED_MPS
+            else:
+                drive_speed = float(np.clip(out[0], -Robot.GAMEPAD_MAX_DRIVE_SPEED_MPS, Robot.GAMEPAD_MAX_DRIVE_SPEED_MPS))
+                rotation_rate = float(np.clip(out[1], -Robot.GAMEPAD_MAX_ROTATE_RATE_DPS, Robot.GAMEPAD_MAX_ROTATE_RATE_DPS))
             self.robot.drive_command = {"rotation_rate": rotation_rate, "drive_speed": drive_speed}
         elif self.robot.control_mode == "heading_strafe":
-            rotation_rate = float(np.clip(out[0], -Robot.GAMEPAD_MAX_ROTATE_RATE_DPS, Robot.GAMEPAD_MAX_ROTATE_RATE_DPS))
-            vx = float(np.clip(out[1], -Robot.GAMEPAD_MAX_DRIVE_SPEED_MPS, Robot.GAMEPAD_MAX_DRIVE_SPEED_MPS))
-            vy = float(np.clip(out[2], -Robot.GAMEPAD_MAX_DRIVE_SPEED_MPS, Robot.GAMEPAD_MAX_DRIVE_SPEED_MPS)) if len(out) > 2 else 0.0
+            if self.loaded_model_type == "ppo":
+                rotation_rate = float(np.clip(out[0], -1.0, 1.0)) * Robot.GAMEPAD_MAX_ROTATE_RATE_DPS
+                vx = float(np.clip(out[1], -1.0, 1.0)) * Robot.GAMEPAD_MAX_DRIVE_SPEED_MPS
+                vy = float(np.clip(out[2], -1.0, 1.0)) * Robot.GAMEPAD_MAX_DRIVE_SPEED_MPS if len(out) > 2 else 0.0
+            else:
+                rotation_rate = float(np.clip(out[0], -Robot.GAMEPAD_MAX_ROTATE_RATE_DPS, Robot.GAMEPAD_MAX_ROTATE_RATE_DPS))
+                vx = float(np.clip(out[1], -Robot.GAMEPAD_MAX_DRIVE_SPEED_MPS, Robot.GAMEPAD_MAX_DRIVE_SPEED_MPS))
+                vy = float(np.clip(out[2], -Robot.GAMEPAD_MAX_DRIVE_SPEED_MPS, Robot.GAMEPAD_MAX_DRIVE_SPEED_MPS)) if len(out) > 2 else 0.0
             self.robot.drive_command = {"rotation_rate": rotation_rate, "vx": vx, "vy": vy}
         else:
-            vx = float(np.clip(out[0], -Robot.GAMEPAD_MAX_DRIVE_SPEED_MPS, Robot.GAMEPAD_MAX_DRIVE_SPEED_MPS))
-            vy = float(np.clip(out[1], -Robot.GAMEPAD_MAX_DRIVE_SPEED_MPS, Robot.GAMEPAD_MAX_DRIVE_SPEED_MPS))
+            if self.loaded_model_type == "ppo":
+                vx = float(np.clip(out[0], -1.0, 1.0)) * Robot.GAMEPAD_MAX_DRIVE_SPEED_MPS
+                vy = float(np.clip(out[1], -1.0, 1.0)) * Robot.GAMEPAD_MAX_DRIVE_SPEED_MPS
+            else:
+                vx = float(np.clip(out[0], -Robot.GAMEPAD_MAX_DRIVE_SPEED_MPS, Robot.GAMEPAD_MAX_DRIVE_SPEED_MPS))
+                vy = float(np.clip(out[1], -Robot.GAMEPAD_MAX_DRIVE_SPEED_MPS, Robot.GAMEPAD_MAX_DRIVE_SPEED_MPS))
             self.robot.drive_command = {"vx": vx, "vy": vy}
 
     def _handle_click(self, pos: Tuple[int, int]) -> None:
