@@ -494,6 +494,7 @@ class SimulatorApp:
         self.loaded_model_mode: Optional[str] = None
         self.selected_model_paths: Dict[str, Path] = {}
         self.model_status = "No model loaded"
+        self.model_inference_buffer: deque = deque(maxlen=50)
 
         self.snapshot_dir = Path.cwd() / "dagger_snapshots"
         self.snapshot_dir.mkdir(exist_ok=True)
@@ -504,6 +505,11 @@ class SimulatorApp:
         self.last_train_me_loaded_seq: Optional[int] = None
         self.active_train_me_case_seq: Optional[int] = None
         self.human_takeover_prompt_timer = 0.0
+
+        self.prefs_open = False
+        self.vis_mode = "action_radius"  # "all" | "action_radius" | "detected" | "sparse_sensing"
+        self.obstacle_detected_timers: Dict[int, float] = {}
+        self.sparse_detection_points: List[Dict[str, float]] = []
 
         self._recompute_layout()
 
@@ -537,20 +543,13 @@ class SimulatorApp:
         self.run_button_rect = pygame.Rect(tx + 12, row1_y, 110, 36)
         self.fail_button_rect = pygame.Rect(tx + 132, row1_y, 110, 36)
 
-        spinner_base = max(self.fail_button_rect.right + 50, tx + int(self.toolbar_rect.width * 0.34))
-        spinner_band = self.toolbar_rect.right - spinner_base - 110
-        obs_x = spinner_base + int(spinner_band * 0.00)
-        hist_x = spinner_base + int(spinner_band * 0.45)
-        rate_x = spinner_base + int(spinner_band * 0.90)
+        obs_x = self.fail_button_rect.right + 50
+        self.obs_minus_rect = pygame.Rect(obs_x + 80, row1_y + 6, 24, 24)
+        self.obs_plus_rect = pygame.Rect(obs_x + 150, row1_y + 6, 24, 24)
 
-        self.obs_minus_rect = pygame.Rect(obs_x, row1_y + 6, 24, 24)
-        self.obs_plus_rect = pygame.Rect(obs_x + 70, row1_y + 6, 24, 24)
-
-        self.hist_minus_rect = pygame.Rect(hist_x, row1_y + 6, 24, 24)
-        self.hist_plus_rect = pygame.Rect(hist_x + 70, row1_y + 6, 24, 24)
-
-        self.rate_minus_rect = pygame.Rect(rate_x, row1_y + 6, 24, 24)
-        self.rate_plus_rect = pygame.Rect(rate_x + 70, row1_y + 6, 24, 24)
+        self.prefs_button_rect = pygame.Rect(self.toolbar_rect.right - 90, row2_y + 6, 80, 24)
+        self.checkbox_logging_rect = pygame.Rect(self.toolbar_rect.right - 330, row1_y + 9, 18, 18)
+        self.checkbox_robot_view_rect = pygame.Rect(self.toolbar_rect.right - 170, row1_y + 9, 18, 18)
 
         self.radio_keyboard_rect = pygame.Rect(tx + 120, row3_y, 18, 18)
         self.radio_gamepad_rect = pygame.Rect(tx + 245, row3_y, 18, 18)
@@ -560,13 +559,34 @@ class SimulatorApp:
         self.model_pick_rect = pygame.Rect(model_center_x - 36, row3_y + 7, 68, 22)
         self.model_reload_rect = pygame.Rect(model_center_x + 42, row3_y + 7, 72, 22)
 
-        self.checkbox_logging_rect = pygame.Rect(self.toolbar_rect.right - 330, row3_y + 8, 18, 18)
-        self.checkbox_robot_view_rect = pygame.Rect(self.toolbar_rect.right - 150, row3_y + 8, 18, 18)
-
         self.radio_heading_rect = pygame.Rect(tx + 120, row2_y, 18, 18)
         self.radio_xy_rect = pygame.Rect(tx + 280, row2_y, 18, 18)
 
         self.radio_heading_strafe_rect = pygame.Rect(tx + 415, row2_y, 18, 18)
+
+        self._recompute_prefs_layout()
+
+    def _recompute_prefs_layout(self) -> None:
+        pw, ph = 460, 370
+        px = (self.window_w - pw) // 2
+        py = (self.window_h - ph) // 2
+        self.prefs_rect = pygame.Rect(px, py, pw, ph)
+        lx = px + 24
+        self.prefs_close_rect = pygame.Rect(px + pw - 36, py + 8, 28, 28)
+        row1 = py + 60    # History
+        row2 = py + 110   # Rate Hz
+        row4 = py + 210   # Radio: All
+        row5 = py + 245   # Radio: Action radius
+        row6 = py + 280   # Radio: Detected
+        row7 = py + 315   # Radio: Sparse sensing
+        self.prefs_hist_minus_rect = pygame.Rect(lx + 180, row1, 24, 24)
+        self.prefs_hist_plus_rect  = pygame.Rect(lx + 250, row1, 24, 24)
+        self.prefs_rate_minus_rect = pygame.Rect(lx + 180, row2, 24, 24)
+        self.prefs_rate_plus_rect  = pygame.Rect(lx + 250, row2, 24, 24)
+        self.prefs_vis_all_rect    = pygame.Rect(lx + 10, row4, 18, 18)
+        self.prefs_vis_radius_rect = pygame.Rect(lx + 10, row5, 18, 18)
+        self.prefs_vis_detect_rect = pygame.Rect(lx + 10, row6, 18, 18)
+        self.prefs_vis_sparse_rect = pygame.Rect(lx + 10, row7, 18, 18)
 
     def _mode_output_desc(self, mode: str) -> str:
         if mode == "heading_drive":
@@ -584,9 +604,29 @@ class SimulatorApp:
         return pygame.Rect(x, y, text_w, text_h).union(rect)
 
     def _tooltip_for_pos(self, pos: Tuple[int, int]) -> Optional[str]:
+        # If prefs panel is open, show prefs tips only
+        if self.prefs_open:
+            hist_field_rect = self.prefs_hist_minus_rect.union(self.prefs_hist_plus_rect).inflate(120, 10)
+            rate_field_rect = self.prefs_rate_minus_rect.union(self.prefs_rate_plus_rect).inflate(120, 10)
+            prefs_tips: List[Tuple[pygame.Rect, str]] = [
+                (self.prefs_close_rect, "Close preferences panel"),
+                (hist_field_rect, "History: logged context window length; larger values let the trainer learn temporal behavior"),
+                (self.prefs_hist_minus_rect, "History -: shorten logging history window"),
+                (self.prefs_hist_plus_rect, "History +: lengthen logging history window"),
+                (rate_field_rect, "Rate Hz: active logging frequency; higher rates capture denser trajectories"),
+                (self.prefs_rate_minus_rect, "Rate Hz -: decrease active logging frequency"),
+                (self.prefs_rate_plus_rect, "Rate Hz +: increase active logging frequency"),
+                (self.prefs_vis_all_rect, "Show all objects: render every obstacle regardless of proximity"),
+                (self.prefs_vis_radius_rect, "Show within action radius: render only obstacles within whisker reach"),
+                (self.prefs_vis_detect_rect, "Show when detected: obstacle appears when whisker hits it; fades after history_len / rate_hz seconds"),
+                (self.prefs_vis_sparse_rect, "Sparse Sensing: render only whisker-detected world points with fading memory"),
+            ]
+            for rect, text in prefs_tips:
+                if rect.collidepoint(pos):
+                    return text
+            return None
+
         obs_field_rect = self.obs_minus_rect.union(self.obs_plus_rect).inflate(120, 10)
-        hist_field_rect = self.hist_minus_rect.union(self.hist_plus_rect).inflate(120, 10)
-        rate_field_rect = self.rate_minus_rect.union(self.rate_plus_rect).inflate(120, 10)
 
         tips: List[Tuple[pygame.Rect, str]] = [
             (self.run_button_rect, "Run: start a new map or load next queued train-me case"),
@@ -594,12 +634,7 @@ class SimulatorApp:
             (obs_field_rect, "Obstacles: number of obstacles per episode; higher values create harder training data"),
             (self.obs_minus_rect, "Obstacles -: reduce obstacle count"),
             (self.obs_plus_rect, "Obstacles +: increase obstacle count"),
-            (hist_field_rect, "History: logged context window length; larger values let the trainer learn temporal behavior"),
-            (self.hist_minus_rect, "History -: shorten logging history window"),
-            (self.hist_plus_rect, "History +: lengthen logging history window"),
-            (rate_field_rect, "Rate Hz: active logging frequency; higher rates capture denser trajectories"),
-            (self.rate_minus_rect, "Rate Hz -: decrease active logging frequency"),
-            (self.rate_plus_rect, "Rate Hz +: increase active logging frequency"),
+            (self.prefs_button_rect, "Prefs: open preferences panel for History, Rate Hz, and Visualization settings"),
             (
                 self._labeled_radio_rect(self.radio_heading_rect, "Heading+Drive"),
                 "Control Mode Heading+Drive: rotate and drive forward/back; trainer learns drive_speed and turn rate",
@@ -784,11 +819,13 @@ class SimulatorApp:
 
     def new_episode(self) -> None:
         self.active_train_me_case_seq = None
+        self.obstacle_detected_timers = {}
         self.robot.reset_random_pose()
         self.collision_display_timer = 0.0
         self.in_memory_log = []
         self.log_timer = 0.0
         self.history_buffer.clear()
+        self.model_inference_buffer.clear()
         n_obs = max(1, int(self.obstacle_count))
         
         # If switching to strafe mode, orient robot toward the target.
@@ -867,6 +904,50 @@ class SimulatorApp:
         detection_radius_m = 0.50
         dist = math.hypot(self.robot.x - ox, self.robot.y - oy)
         return (dist - or_) <= detection_radius_m
+
+    def _update_obstacle_detection(self, dt: float) -> None:
+        if self.vis_mode != "detected":
+            self.obstacle_detected_timers.clear()
+            return
+        persistence = self.history_len / max(0.1, self.active_log_rate_hz)
+        for i, (ox, oy, radius) in enumerate(self.obstacles):
+            for _start, endpoint, hit in self.whisker_segments:
+                if not hit:
+                    continue
+                if math.hypot(float(endpoint[0]) - ox, float(endpoint[1]) - oy) <= radius + 0.02:
+                    self.obstacle_detected_timers[i] = persistence
+                    break
+        for idx in list(self.obstacle_detected_timers.keys()):
+            self.obstacle_detected_timers[idx] -= dt
+            if self.obstacle_detected_timers[idx] <= 0.0:
+                del self.obstacle_detected_timers[idx]
+
+    def _current_model_memory_len(self) -> int:
+        mode = self.robot.control_mode
+        n_action = len(self._command_keys_for_mode(mode))
+        state_dim = 12  # 11 whiskers + heading_to_target
+        if self.loaded_model is not None:
+            input_dim = int(self.loaded_model.get("input_dim", 0))
+            denom = state_dim + n_action
+            if input_dim >= state_dim and denom > 0 and (input_dim + n_action) % denom == 0:
+                return max(1, (input_dim + n_action) // denom)
+        return max(1, int(self.history_len))
+
+    def _update_sparse_detection_points(self) -> None:
+        n = self._current_model_memory_len()
+
+        for p in self.sparse_detection_points:
+            p["age"] += 1
+        self.sparse_detection_points = [p for p in self.sparse_detection_points if p["age"] <= n]
+
+        heading = math.radians(self.robot.heading_deg)
+        for whisker_angle_deg, whisker_len in zip(Robot.WHISKER_ANGLES_DEG, self.robot.whisker_lengths):
+            if whisker_len >= Robot.WHISKER_MAX_LEN_M:
+                continue
+            ray_theta = heading + math.radians(float(whisker_angle_deg))
+            hit_x = self.robot.x + math.sin(ray_theta) * whisker_len
+            hit_y = self.robot.y + math.cos(ray_theta) * whisker_len
+            self.sparse_detection_points.append({"x": float(hit_x), "y": float(hit_y), "age": 0})
 
     def _should_log(self) -> bool:
         """Determine if logging should occur at all this frame."""
@@ -1005,7 +1086,9 @@ class SimulatorApp:
                 "x_std": np.asarray(blob["x_std"], dtype=np.float64),
                 "y_mean": np.asarray(blob["y_mean"], dtype=np.float64),
                 "y_std": np.asarray(blob["y_std"], dtype=np.float64),
+                "input_dim": int(blob.get("input_dim", weights[0].shape[0])),
             }
+            self.model_inference_buffer.clear()
             self.loaded_model_mode = expected_mode
             self.selected_model_paths[expected_mode] = model_path
             self.model_status = f"Loaded {model_path.name}"
@@ -1189,7 +1272,31 @@ class SimulatorApp:
                 self.robot.drive_command = {"vx": 0.0, "vy": 0.0}
             return
 
-        features = np.asarray(self.robot.whisker_lengths + [self.robot.heading_to_target_deg], dtype=np.float64).reshape(1, -1)
+        mode = self.robot.control_mode
+        action_keys = self._command_keys_for_mode(mode)
+        n_action = len(action_keys)
+        state_dim = 12  # 11 whiskers + heading_to_target
+        input_dim = self.loaded_model["input_dim"]
+        history_len = (input_dim + n_action) // (state_dim + n_action)
+
+        # Capture current state (action field = last issued drive_command)
+        self.model_inference_buffer.append(self._capture_timestep_record(mode))
+
+        # Build history window of length history_len, zero-padding if needed
+        history = list(self.model_inference_buffer)[-history_len:]
+        while len(history) < history_len:
+            history.insert(0, self._zero_timestep_record(mode))
+
+        # Flatten: each step contributes state; all but the last also contribute action
+        feat: List[float] = []
+        for i, step in enumerate(history):
+            feat.extend([float(v) for v in step["whisker_lengths"]] + [float(step["heading_to_target"])])
+            if i < history_len - 1:
+                action_map = step.get("action", {})
+                for k in action_keys:
+                    feat.append(float(action_map.get(k, 0.0)))
+
+        features = np.asarray(feat, dtype=np.float64).reshape(1, -1)
         pred = self._predict_model_output(features)
         if pred is None:
             return
@@ -1210,7 +1317,48 @@ class SimulatorApp:
             self.robot.drive_command = {"vx": vx, "vy": vy}
 
     def _handle_click(self, pos: Tuple[int, int]) -> None:
+        # If prefs panel is open, handle its clicks first
+        if self.prefs_open:
+            if self.prefs_close_rect.collidepoint(pos):
+                self.prefs_open = False
+                return
+            if not self.prefs_rect.collidepoint(pos):
+                self.prefs_open = False
+                return
+            if self.prefs_hist_minus_rect.collidepoint(pos):
+                self.history_len = max(1, self.history_len - 1)
+                self.history_buffer = deque(list(self.history_buffer)[-self.history_len:], maxlen=self.history_len)
+                return
+            if self.prefs_hist_plus_rect.collidepoint(pos):
+                self.history_len = min(10, self.history_len + 1)
+                self.history_buffer = deque(list(self.history_buffer)[-self.history_len:], maxlen=self.history_len)
+                return
+            if self.prefs_rate_minus_rect.collidepoint(pos):
+                self.active_log_rate_hz = max(1.0, self.active_log_rate_hz - 1.0)
+                return
+            if self.prefs_rate_plus_rect.collidepoint(pos):
+                self.active_log_rate_hz = min(30.0, self.active_log_rate_hz + 1.0)
+                return
+            if self.prefs_vis_all_rect.collidepoint(pos):
+                self.vis_mode = "all"
+                return
+            if self.prefs_vis_radius_rect.collidepoint(pos):
+                self.vis_mode = "action_radius"
+                return
+            if self.prefs_vis_detect_rect.collidepoint(pos):
+                self.vis_mode = "detected"
+                return
+            if self.prefs_vis_sparse_rect.collidepoint(pos):
+                self.vis_mode = "sparse_sensing"
+                return
+            return  # Swallow remaining clicks inside panel
+
+        if self.prefs_button_rect.collidepoint(pos):
+            self.prefs_open = True
+            return
+
         if self.run_button_rect.collidepoint(pos):
+            self.sparse_detection_points.clear()
             if self.train_me_queue and self._prompt_run_train_me():
                 self._run_next_train_me_case()
             else:
@@ -1231,24 +1379,6 @@ class SimulatorApp:
 
         if self.obs_plus_rect.collidepoint(pos):
             self.obstacle_count = min(50, self.obstacle_count + 1)
-            return
-
-        if self.hist_minus_rect.collidepoint(pos):
-            self.history_len = max(1, self.history_len - 1)
-            self.history_buffer = deque(list(self.history_buffer)[-self.history_len :], maxlen=self.history_len)
-            return
-
-        if self.hist_plus_rect.collidepoint(pos):
-            self.history_len = min(10, self.history_len + 1)
-            self.history_buffer = deque(list(self.history_buffer)[-self.history_len :], maxlen=self.history_len)
-            return
-
-        if self.rate_minus_rect.collidepoint(pos):
-            self.active_log_rate_hz = max(1.0, self.active_log_rate_hz - 1.0)
-            return
-
-        if self.rate_plus_rect.collidepoint(pos):
-            self.active_log_rate_hz = min(30.0, self.active_log_rate_hz + 1.0)
             return
 
         if self.radio_heading_rect.collidepoint(pos):
@@ -1328,7 +1458,10 @@ class SimulatorApp:
         self._draw_arrow(start, arrow_vec, (245, 190, 35), 3)
 
     def _draw_simulation(self) -> None:
-        pygame.draw.rect(self.screen, self.ROOM_BG, self.sim_rect)
+        if self.vis_mode == "sparse_sensing":
+            pygame.draw.rect(self.screen, (0, 0, 0), self.sim_rect)
+        else:
+            pygame.draw.rect(self.screen, self.ROOM_BG, self.sim_rect)
 
         self.screen.set_clip(self.sim_rect)
         if self.robot_aligned_view:
@@ -1338,17 +1471,37 @@ class SimulatorApp:
                 self.world_to_screen(Robot.ROOM_WIDTH_M, Robot.ROOM_HEIGHT_M),
                 self.world_to_screen(0.0, Robot.ROOM_HEIGHT_M),
             ]
-            pygame.draw.polygon(self.screen, self.ROOM_BG, room_corners)
+            if self.vis_mode != "sparse_sensing":
+                pygame.draw.polygon(self.screen, self.ROOM_BG, room_corners)
             pygame.draw.polygon(self.screen, self.ROOM_BORDER, room_corners, 2)
         else:
             pygame.draw.rect(self.screen, self.ROOM_BORDER, self.room_rect_px, 2)
 
-        for obstacle in self.obstacles:
-            if not self._is_obstacle_in_action_radius(obstacle):
-                continue
-            ox, oy, radius = obstacle
-            center_px = self.world_to_screen(ox, oy)
-            pygame.draw.circle(self.screen, self.OBSTACLE_COLOR, center_px, max(2, int(radius * self.px_per_meter)))
+        if self.vis_mode != "sparse_sensing":
+            for i, obstacle in enumerate(self.obstacles):
+                if self.vis_mode == "all":
+                    visible = True
+                elif self.vis_mode == "action_radius":
+                    visible = self._is_obstacle_in_action_radius(obstacle)
+                else:
+                    visible = i in self.obstacle_detected_timers
+                if not visible:
+                    continue
+                ox, oy, radius = obstacle
+                center_px = self.world_to_screen(ox, oy)
+                pygame.draw.circle(self.screen, self.OBSTACLE_COLOR, center_px, max(2, int(radius * self.px_per_meter)))
+        else:
+            point_layer = pygame.Surface((self.sim_rect.width, self.sim_rect.height), pygame.SRCALPHA)
+            n = max(1, self._current_model_memory_len())
+            for p in self.sparse_detection_points:
+                age = int(p["age"])
+                alpha = int(max(0.0, min(255.0, 255.0 * (1.0 - (age / n)))))
+                if alpha <= 0:
+                    continue
+                sx, sy = self.world_to_screen(float(p["x"]), float(p["y"]))
+                local_pt = (sx - self.sim_rect.left, sy - self.sim_rect.top)
+                pygame.draw.circle(point_layer, (255, 255, 255, alpha), local_pt, 3)
+            self.screen.blit(point_layer, self.sim_rect.topleft)
 
         if self.target is not None:
             tx, ty, tr = self.target
@@ -1443,23 +1596,10 @@ class SimulatorApp:
         self._render_text("+", self.obs_plus_rect.left + 7, self.obs_plus_rect.top + 1)
         self._render_text(f"{self.obstacle_count}", self.obs_minus_rect.right + 10, self.obs_minus_rect.top + 1)
 
-        self._render_text("History", self.hist_minus_rect.left - 78, row1_y + 4, small=True)
-        pygame.draw.rect(self.screen, (230, 230, 234), self.hist_minus_rect, border_radius=3)
-        pygame.draw.rect(self.screen, (230, 230, 234), self.hist_plus_rect, border_radius=3)
-        pygame.draw.rect(self.screen, (160, 160, 165), self.hist_minus_rect, 1, border_radius=3)
-        pygame.draw.rect(self.screen, (160, 160, 165), self.hist_plus_rect, 1, border_radius=3)
-        self._render_text("-", self.hist_minus_rect.left + 8, self.hist_minus_rect.top + 1)
-        self._render_text("+", self.hist_plus_rect.left + 7, self.hist_plus_rect.top + 1)
-        self._render_text(f"{self.history_len}", self.hist_minus_rect.right + 12, self.hist_minus_rect.top + 1)
-
-        self._render_text("Rate Hz", self.rate_minus_rect.left - 78, row1_y + 4, small=True)
-        pygame.draw.rect(self.screen, (230, 230, 234), self.rate_minus_rect, border_radius=3)
-        pygame.draw.rect(self.screen, (230, 230, 234), self.rate_plus_rect, border_radius=3)
-        pygame.draw.rect(self.screen, (160, 160, 165), self.rate_minus_rect, 1, border_radius=3)
-        pygame.draw.rect(self.screen, (160, 160, 165), self.rate_plus_rect, 1, border_radius=3)
-        self._render_text("-", self.rate_minus_rect.left + 8, self.rate_minus_rect.top + 1)
-        self._render_text("+", self.rate_plus_rect.left + 7, self.rate_plus_rect.top + 1)
-        self._render_text(f"{self.active_log_rate_hz:.0f}", self.rate_minus_rect.right + 8, self.rate_minus_rect.top + 1)
+        # Prefs button
+        pygame.draw.rect(self.screen, (230, 230, 234), self.prefs_button_rect, border_radius=3)
+        pygame.draw.rect(self.screen, (160, 160, 165), self.prefs_button_rect, 1, border_radius=3)
+        self._render_text("Prefs", self.prefs_button_rect.left + 18, self.prefs_button_rect.top + 2, small=True)
 
         self._render_text("Control Mode", self.toolbar_rect.left + 12, row2_y + 4, small=True)
         self._draw_radio(self.radio_heading_rect, self.robot.control_mode == "heading_drive", "Heading+Drive")
@@ -1483,6 +1623,50 @@ class SimulatorApp:
 
         self._draw_checkbox(self.checkbox_logging_rect, self.logging_enabled, "Enable Logging")
         self._draw_checkbox(self.checkbox_robot_view_rect, self.robot_aligned_view, "Robot View")
+
+    def _draw_prefs_panel(self) -> None:
+        # Dim overlay
+        dim = pygame.Surface((self.window_w, self.window_h), pygame.SRCALPHA)
+        dim.fill((0, 0, 0, 120))
+        self.screen.blit(dim, (0, 0))
+        # Panel background
+        pygame.draw.rect(self.screen, (245, 245, 248), self.prefs_rect, border_radius=8)
+        pygame.draw.rect(self.screen, (140, 140, 150), self.prefs_rect, 2, border_radius=8)
+        px, py = self.prefs_rect.left, self.prefs_rect.top
+        lx = px + 24
+        # Title
+        title_surf = self.font.render("Preferences", True, (25, 25, 25))
+        self.screen.blit(title_surf, (lx, py + 14))
+        # Close button
+        pygame.draw.rect(self.screen, (200, 80, 70), self.prefs_close_rect, border_radius=4)
+        close_surf = self.small_font.render("X", True, (255, 255, 255))
+        self.screen.blit(close_surf, (self.prefs_close_rect.left + 7, self.prefs_close_rect.top + 5))
+        # ---- History spinner ----
+        self._render_text("History (steps)", lx, self.prefs_hist_minus_rect.top + 2, small=True)
+        pygame.draw.rect(self.screen, (230, 230, 234), self.prefs_hist_minus_rect, border_radius=3)
+        pygame.draw.rect(self.screen, (230, 230, 234), self.prefs_hist_plus_rect, border_radius=3)
+        pygame.draw.rect(self.screen, (160, 160, 165), self.prefs_hist_minus_rect, 1, border_radius=3)
+        pygame.draw.rect(self.screen, (160, 160, 165), self.prefs_hist_plus_rect, 1, border_radius=3)
+        self._render_text("-", self.prefs_hist_minus_rect.left + 8, self.prefs_hist_minus_rect.top + 1)
+        self._render_text("+", self.prefs_hist_plus_rect.left + 7, self.prefs_hist_plus_rect.top + 1)
+        self._render_text(f"{self.history_len}", self.prefs_hist_minus_rect.right + 10, self.prefs_hist_minus_rect.top + 1)
+        # ---- Rate Hz spinner ----
+        self._render_text("Rate Hz", lx, self.prefs_rate_minus_rect.top + 2, small=True)
+        pygame.draw.rect(self.screen, (230, 230, 234), self.prefs_rate_minus_rect, border_radius=3)
+        pygame.draw.rect(self.screen, (230, 230, 234), self.prefs_rate_plus_rect, border_radius=3)
+        pygame.draw.rect(self.screen, (160, 160, 165), self.prefs_rate_minus_rect, 1, border_radius=3)
+        pygame.draw.rect(self.screen, (160, 160, 165), self.prefs_rate_plus_rect, 1, border_radius=3)
+        self._render_text("-", self.prefs_rate_minus_rect.left + 8, self.prefs_rate_minus_rect.top + 1)
+        self._render_text("+", self.prefs_rate_plus_rect.left + 7, self.prefs_rate_plus_rect.top + 1)
+        self._render_text(f"{self.active_log_rate_hz:.0f}", self.prefs_rate_minus_rect.right + 8, self.prefs_rate_minus_rect.top + 1)
+        # ---- Visualization section ----
+        vis_label_y = self.prefs_vis_all_rect.top - 35
+        self._render_text("Visualization Mode", lx, vis_label_y, small=True)
+        pygame.draw.line(self.screen, (180, 180, 185), (lx, vis_label_y + 20), (self.prefs_rect.right - 24, vis_label_y + 20), 1)
+        self._draw_radio(self.prefs_vis_all_rect, self.vis_mode == "all", "Show all objects")
+        self._draw_radio(self.prefs_vis_radius_rect, self.vis_mode == "action_radius", "Show within action radius")
+        self._draw_radio(self.prefs_vis_detect_rect, self.vis_mode == "detected", "Show when detected (memory)")
+        self._draw_radio(self.prefs_vis_sparse_rect, self.vis_mode == "sparse_sensing", "Sparse Sensing")
 
     def _draw_panel(self) -> None:
         pygame.draw.rect(self.screen, self.PANEL_COLOR, self.panel_rect)
@@ -1589,6 +1773,8 @@ class SimulatorApp:
             self.update_robot_command()
             self.whisker_segments = self.robot.step(dt, self.obstacles)
             self.robot.update_heading_to_target(self.target)
+            self._update_sparse_detection_points()
+            self._update_obstacle_detection(dt)
             
             # Logging: dynamic cadence by context
             self.log_timer += dt
@@ -1608,6 +1794,7 @@ class SimulatorApp:
                     self.new_episode()
             elif self.robot.collision_flag or self.check_whisker_collision():
                 print("COLLISION")
+                self.sparse_detection_points.clear()
                 if self.input_mode == "model":
                     self._enqueue_train_me_case("collision")
                 # Collision: clear log without writing to disk
@@ -1624,6 +1811,8 @@ class SimulatorApp:
             self._draw_top_bar()
             self._draw_simulation()
             self._draw_panel()
+            if self.prefs_open:
+                self._draw_prefs_panel()
             tip = self._tooltip_for_pos(self.mouse_pos)
             if tip is not None:
                 self._draw_tooltip(self.mouse_pos, tip)
