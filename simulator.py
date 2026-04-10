@@ -1,6 +1,9 @@
 import json
 import math
 import random
+import shutil
+import subprocess
+import threading
 import time
 from collections import deque
 from datetime import datetime
@@ -9,15 +12,6 @@ from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import pygame
-
-try:
-    import tkinter as tk
-    from tkinter import filedialog, messagebox
-except Exception:
-    tk = None
-    filedialog = None
-    messagebox = None
-
 
 Vec2 = np.ndarray
 
@@ -33,8 +27,8 @@ class Robot:
     WHISKER_ANGLES_DEG = [-90, -60, -45, -30, -15, 0, 15, 30, 45, 60, 90]
     WHISKER_MAX_LEN_M = 0.50
 
-    KEYBOARD_DRIVE_SPEED_MPS = 0.20
-    KEYBOARD_ROTATE_RATE_DPS = 20.0
+    KEYBOARD_DRIVE_SPEED_MPS = 0.80
+    KEYBOARD_ROTATE_RATE_DPS = 60.0
     GAMEPAD_MAX_DRIVE_SPEED_MPS = 0.40
     GAMEPAD_MAX_ROTATE_RATE_DPS = 40.0
 
@@ -64,10 +58,9 @@ class Robot:
         return math.radians(deg)
 
     def _basis_vectors(self) -> Tuple[Vec2, Vec2]:
-        # X-axis: forward, Y-axis: left
         theta = self._deg_to_rad(self.heading_deg)
-        local_x = np.array([math.sin(theta), math.cos(theta)], dtype=float)  # forward
-        local_y = np.array([-math.cos(theta), math.sin(theta)], dtype=float)  # left
+        local_x = np.array([math.sin(theta), math.cos(theta)], dtype=float)
+        local_y = np.array([-math.cos(theta), math.sin(theta)], dtype=float)
         return local_x, local_y
 
     def forward_vector(self) -> Vec2:
@@ -76,7 +69,6 @@ class Robot:
 
     @staticmethod
     def _apply_deadband(value: float, deadband: float = 0.05) -> float:
-        """Apply deadband to controller input."""
         if abs(value) < deadband:
             return 0.0
         if value > 0:
@@ -86,7 +78,6 @@ class Robot:
 
     @staticmethod
     def _shape_gamepad_axis(value: float) -> float:
-        """Apply cubic axis shaping for finer low-end control."""
         return value * value * value
 
     def reset_random_pose(self) -> None:
@@ -94,13 +85,15 @@ class Robot:
         self.y = random.uniform(self.CLEARANCE_FROM_WALLS_M, self.ROOM_HEIGHT_M - self.CLEARANCE_FROM_WALLS_M)
 
         if self.control_mode in ("heading_drive", "heading_strafe"):
-            # For heading-control episodes, initialize with truly random heading.
             self.heading_deg = random.uniform(-180.0, 180.0)
         else:
-            to_center = np.array([
-                0.5 * self.ROOM_WIDTH_M - self.x,
-                0.5 * self.ROOM_HEIGHT_M - self.y,
-            ], dtype=float)
+            to_center = np.array(
+                [
+                    0.5 * self.ROOM_WIDTH_M - self.x,
+                    0.5 * self.ROOM_HEIGHT_M - self.y,
+                ],
+                dtype=float,
+            )
             base_heading = math.degrees(math.atan2(to_center[0], to_center[1]))
 
             for _ in range(200):
@@ -124,7 +117,6 @@ class Robot:
         self.collision_flash_timer = 0.0
 
     def compute_heading_to_target(self, target_x: float, target_y: float) -> float:
-        """Compute the angle to the target in the robot's local frame (degrees)."""
         dx = target_x - self.x
         dy = target_y - self.y
         world_angle_to_target_deg = math.degrees(math.atan2(dx, dy))
@@ -270,7 +262,6 @@ class Robot:
 
     @staticmethod
     def _ray_circle_intersection(origin: Vec2, direction: Vec2, center: Vec2, radius: float) -> Optional[float]:
-        # Solve ||origin + t*direction - center||^2 = radius^2 for t >= 0.
         oc = origin - center
         a = float(np.dot(direction, direction))
         b = 2.0 * float(np.dot(direction, oc))
@@ -291,7 +282,6 @@ class Robot:
 
     @staticmethod
     def _ray_segment_intersection(origin: Vec2, direction: Vec2, p1: Vec2, p2: Vec2) -> Optional[float]:
-        # Intersect origin + t*direction with p1 + u*(p2-p1), t>=0 and 0<=u<=1.
         v1 = origin - p1
         v2 = p2 - p1
         denom = direction[0] * v2[1] - direction[1] * v2[0]
@@ -369,7 +359,6 @@ class Robot:
         if collided:
             self.collision_flag = True
             self.collision_flash_timer = 0.20
-            # Stop immediately upon collision.
             if self.control_mode == "heading_drive":
                 self.drive_command = {"rotation_rate": 0.0, "drive_speed": 0.0}
             elif self.control_mode == "heading_strafe":
@@ -397,7 +386,6 @@ class Robot:
         return whiskers
 
     def update_heading_to_target(self, target: Optional[Tuple[float, float, float]]) -> None:
-        """Update heading_to_target based on target position."""
         if target is None:
             self.heading_to_target_deg = 0.0
         else:
@@ -490,10 +478,11 @@ class SimulatorApp:
         self.run_counter = (max(existing) + 1) if existing else 0
 
         self.model_dir = Path.cwd() / "trained_models"
+        self.model_dir.mkdir(exist_ok=True)
         self.loaded_model: Optional[Dict[str, np.ndarray]] = None
         self.loaded_model_mode: Optional[str] = None
         self.selected_model_paths: Dict[str, Path] = {}
-        self.model_status = "No model loaded"
+        self.model_status = "No model loaded (train first)"
 
         self.snapshot_dir = Path.cwd() / "dagger_snapshots"
         self.snapshot_dir.mkdir(exist_ok=True)
@@ -505,9 +494,117 @@ class SimulatorApp:
         self.active_train_me_case_seq: Optional[int] = None
         self.human_takeover_prompt_timer = 0.0
 
+        # Dialog backend: only external tools (zenity/kdialog) or none
+        self.dialog_backend = "none"
+        if shutil.which("zenity") or shutil.which("kdialog"):
+            self.dialog_backend = "external"
+
+        self.model_pick_thread: Optional[threading.Thread] = None
+        self.model_pick_result: Optional[str] = None
+        self.model_pick_result_ready = False
+
+        self.trainme_prompt_thread = None
+        self.trainme_prompt_result = None
+        self.trainme_prompt_ready = False
+
         self._recompute_layout()
 
         self.new_episode()
+
+    def _ask_open_filename_external(self, title: str, initialdir: Path) -> Optional[str]:
+        initial = str(initialdir)
+
+        zenity = shutil.which("zenity")
+        if zenity:
+            try:
+                proc = subprocess.run(
+                    [
+                        zenity,
+                        "--file-selection",
+                        f"--title={title}",
+                        f"--filename={initial.rstrip('/')}/",
+                        "--file-filter=Model JSON | *.json",
+                        "--file-filter=All files | *",
+                    ],
+                    capture_output=True,
+                    text=True,
+                    timeout=30,
+                    check=False,
+                )
+                if proc.returncode == 0:
+                    picked = proc.stdout.strip()
+                    return picked if picked else None
+                if proc.returncode == 1:
+                    return ""
+            except Exception:
+                pass
+
+        kdialog = shutil.which("kdialog")
+        if kdialog:
+            try:
+                proc = subprocess.run(
+                    [kdialog, "--getopenfilename", initial, "*.json|Model JSON"],
+                    capture_output=True,
+                    text=True,
+                    timeout=30,
+                    check=False,
+                )
+                if proc.returncode == 0:
+                    picked = proc.stdout.strip()
+                    return picked if picked else None
+                if proc.returncode == 1:
+                    return ""
+            except Exception:
+                pass
+
+        return None
+
+    def _ask_yes_no_external(self, title: str, prompt: str) -> Optional[bool]:
+        zenity = shutil.which("zenity")
+        if zenity:
+            try:
+                proc = subprocess.run(
+                    [zenity, "--question", f"--title={title}", f"--text={prompt}"],
+                    capture_output=True,
+                    text=True,
+                    timeout=30,
+                    check=False,
+                )
+                if proc.returncode == 0:
+                    return True
+                if proc.returncode == 1:
+                    return False
+            except Exception:
+                pass
+
+        kdialog = shutil.which("kdialog")
+        if kdialog:
+            try:
+                proc = subprocess.run(
+                    [kdialog, "--yesno", prompt, "--title", title],
+                    capture_output=True,
+                    text=True,
+                    timeout=30,
+                    check=False,
+                )
+                if proc.returncode == 0:
+                    return True
+                if proc.returncode == 1:
+                    return False
+            except Exception:
+                pass
+
+        return None
+
+    def _ask_open_filename(self, title: str, initialdir: Path) -> Optional[str]:
+        if self.dialog_backend == "external":
+            return self._ask_open_filename_external(title, initialdir)
+        return None
+
+    def _ask_yes_no(self, title: str, prompt: str) -> Optional[bool]:
+        if self.dialog_backend == "external":
+            return self._ask_yes_no_external(title, prompt)
+        return None
 
     def _recompute_layout(self) -> None:
         top = self.margin_px
@@ -688,7 +785,6 @@ class SimulatorApp:
             y_px = self.room_rect_px.bottom - y_m * self.px_per_meter
             return int(x_px), int(y_px)
 
-        # Camera follows robot pose: forward is up on screen, left is left on screen.
         local_x, local_y = self.robot._basis_vectors()
         rel = np.array([x_m - self.robot.x, y_m - self.robot.y], dtype=float)
         forward = float(np.dot(rel, local_x))
@@ -744,7 +840,6 @@ class SimulatorApp:
             if not valid:
                 continue
 
-            # Enforce obstacle edge to robot edge clearance at spawn.
             center_dist_to_robot = float(np.linalg.norm(center - robot_center))
             if center_dist_to_robot < self.robot.collision_radius + radius + 0.20:
                 valid = False
@@ -790,12 +885,11 @@ class SimulatorApp:
         self.log_timer = 0.0
         self.history_buffer.clear()
         n_obs = max(1, int(self.obstacle_count))
-        
-        # If switching to strafe mode, orient robot toward the target.
+
         if self.robot.control_mode == "xy_strafe" and self.prev_control_mode != "xy_strafe":
             self.obstacles = self._spawn_obstacles(n_obs)
             self.target = self._spawn_target(self.obstacles)
-            
+
             if self.target is not None:
                 tx, ty, _ = self.target
                 target_angle = math.degrees(math.atan2(tx - self.robot.x, ty - self.robot.y))
@@ -803,7 +897,7 @@ class SimulatorApp:
         else:
             self.obstacles = self._spawn_obstacles(n_obs)
             self.target = self._spawn_target(self.obstacles)
-        
+
         self.whisker_segments = self.robot.compute_whiskers(self.obstacles)
         self.robot.update_heading_to_target(self.target)
         self.prev_control_mode = self.robot.control_mode
@@ -814,46 +908,57 @@ class SimulatorApp:
             self.current_model_snapshot_path = None
 
     def update_robot_command(self) -> None:
-        # Detect control mode change and auto-generate new episode.
+        # If control mode changed, restart episode
         if self.robot.control_mode != self.prev_control_mode:
             self.new_episode()
             return
-        
+
+        # --- CRITICAL: BLOCK MODEL DURING TAKEOVER ---
+        if self.active_train_me_case_seq is not None:
+            keys = pygame.key.get_pressed()
+            self.robot.update_command_from_keys(keys)
+            return
+        # ------------------------------------------------
+
+        # Normal behavior
         if self.input_mode == "keyboard":
             keys = pygame.key.get_pressed()
             self.robot.update_command_from_keys(keys)
+
         elif self.input_mode == "gamepad":
             self.robot.update_command_from_gamepad(self.joystick)
-        else:
+
+        else:  # MODEL MODE
             if self.loaded_model_mode != self.robot.control_mode:
                 self._load_latest_model_for_mode(self.robot.control_mode)
             self._update_command_from_model()
-    
+
+
     def check_goal_reached(self) -> bool:
-        """Check if robot has reached the target."""
         if self.target is None:
             return False
         tx, ty, _ = self.target
         dist = math.hypot(self.robot.x - tx, self.robot.y - ty)
         return dist <= self.GOAL_REACH_RADIUS_M
-    
+
     def check_whisker_collision(self) -> bool:
-        """Check if any whisker is shorter than 100mm."""
         WHISKER_COLLISION_THRESHOLD_M = 0.10
         return any(length < WHISKER_COLLISION_THRESHOLD_M for length in self.robot.whisker_lengths)
 
     def _has_nonzero_input(self) -> bool:
-        """Check if user has non-zero control input."""
         cmd = self.robot.drive_command
         if self.robot.control_mode == "heading_drive":
             return cmd.get("rotation_rate", 0.0) != 0.0 or cmd.get("drive_speed", 0.0) != 0.0
         elif self.robot.control_mode == "heading_strafe":
-            return cmd.get("rotation_rate", 0.0) != 0.0 or cmd.get("vx", 0.0) != 0.0 or cmd.get("vy", 0.0) != 0.0
+            return (
+                cmd.get("rotation_rate", 0.0) != 0.0
+                or cmd.get("vx", 0.0) != 0.0
+                or cmd.get("vy", 0.0) != 0.0
+            )
         else:
             return cmd.get("vx", 0.0) != 0.0 or cmd.get("vy", 0.0) != 0.0
 
     def _obstacle_within_action_radius(self) -> bool:
-        """Check if any obstacle is within action radius (whisker max length)."""
         DETECTION_RADIUS_M = 0.50
         for ox, oy, or_ in self.obstacles:
             dist = math.hypot(self.robot.x - ox, self.robot.y - oy)
@@ -862,23 +967,15 @@ class SimulatorApp:
         return False
 
     def _is_obstacle_in_action_radius(self, obstacle: Tuple[float, float, float]) -> bool:
-        """Check if one obstacle is within action radius of the robot."""
         ox, oy, or_ = obstacle
         detection_radius_m = 0.50
         dist = math.hypot(self.robot.x - ox, self.robot.y - oy)
         return (dist - or_) <= detection_radius_m
 
     def _should_log(self) -> bool:
-        """Determine if logging should occur at all this frame."""
         return self._current_log_interval() is not None
 
     def _current_log_interval(self) -> Optional[float]:
-        """Return current logging interval in seconds based on scene context.
-
-        - active_log_rate_hz: obstacle in action radius and non-zero control input.
-        - 10% of active_log_rate_hz: no obstacle in action radius.
-        - None: logging disabled, or obstacle nearby with zero control input.
-        """
         if not self.logging_enabled:
             return None
 
@@ -890,7 +987,6 @@ class SimulatorApp:
         return None
 
     def _collect_log_entry(self) -> Dict:
-        """Collect a structured log row containing a fixed-length history window."""
         mode = self.robot.control_mode
         self.history_buffer.append(self._capture_timestep_record(mode))
 
@@ -938,7 +1034,6 @@ class SimulatorApp:
         }
 
     def _write_log_to_file(self) -> None:
-        """Write the in-memory log to a file."""
         if not self.in_memory_log:
             return
 
@@ -955,7 +1050,7 @@ class SimulatorApp:
             run_idx = 0
         filename = f"run_{run_idx:03d}_{mode_suffix}_mem{self.history_len}.jsonl"
         filepath = bucket_dir / filename
-        
+
         try:
             with open(filepath, "w") as f:
                 for entry in self.in_memory_log:
@@ -965,7 +1060,6 @@ class SimulatorApp:
             print(f"Error writing log file {filepath}: {e}")
 
     def _load_latest_model_for_mode(self, mode: str) -> bool:
-        """Load the latest trained model artifact for the requested control mode."""
         suffix_map = {
             "heading_drive": "heading",
             "xy_strafe": "strafe",
@@ -976,23 +1070,50 @@ class SimulatorApp:
         if not model_files:
             self.loaded_model = None
             self.loaded_model_mode = None
-            self.model_status = f"No {suffix} model"
+            self.model_status = f"No {suffix} model (run train_mlp.py)"
             return False
 
         model_path = model_files[-1]
         return self._load_model_from_file(model_path, mode)
 
-    def _load_model_from_file(self, model_path: Path, expected_mode: str) -> bool:
-        """Load a specific model file and validate it matches control mode."""
+    def _load_model_from_file(self, model_path: Path, expected_mode: Optional[str]) -> bool:
         try:
+            if not model_path.exists():
+                self.loaded_model = None
+                self.loaded_model_mode = None
+                self.model_status = f"Model not found: {model_path.name}"
+                return False
+
             with open(model_path, "r", encoding="utf-8") as f:
                 blob = json.load(f)
 
-            file_mode = blob.get("mode")
-            if file_mode is not None and file_mode != expected_mode:
+            if not isinstance(blob, dict):
                 self.loaded_model = None
                 self.loaded_model_mode = None
-                self.model_status = f"Mode mismatch in {model_path.name}"
+                self.model_status = "Invalid model file: root must be object"
+                return False
+
+            required_keys = {"weights", "biases", "x_mean", "x_std", "y_mean", "y_std"}
+            if not required_keys.issubset(blob.keys()):
+                self.loaded_model = None
+                self.loaded_model_mode = None
+                snapshot_like = {"robot_pose", "obstacles", "target"}.issubset(blob.keys())
+                if snapshot_like:
+                    self.model_status = "Selected DAGGER snapshot, not model"
+                else:
+                    self.model_status = "Invalid model JSON (use train_mlp.py output)"
+                return False
+
+            file_mode = blob.get("mode")
+            valid_modes = {"heading_drive", "xy_strafe", "heading_strafe"}
+            mode_to_use = expected_mode
+            if mode_to_use is None:
+                mode_to_use = file_mode if isinstance(file_mode, str) and file_mode in valid_modes else self.robot.control_mode
+
+            if file_mode is not None and file_mode != mode_to_use:
+                self.loaded_model = None
+                self.loaded_model_mode = None
+                self.model_status = f"Mode mismatch: file={file_mode} ui={mode_to_use}"
                 return False
 
             weights = [np.asarray(w, dtype=np.float64) for w in blob["weights"]]
@@ -1006,50 +1127,76 @@ class SimulatorApp:
                 "y_mean": np.asarray(blob["y_mean"], dtype=np.float64),
                 "y_std": np.asarray(blob["y_std"], dtype=np.float64),
             }
-            self.loaded_model_mode = expected_mode
-            self.selected_model_paths[expected_mode] = model_path
-            self.model_status = f"Loaded {model_path.name}"
+            self.loaded_model_mode = mode_to_use
+            self.selected_model_paths[mode_to_use] = model_path
+            if mode_to_use != self.robot.control_mode:
+                self.robot.set_control_mode(mode_to_use)
+                self.model_status = f"Loaded {model_path.name} ({mode_to_use})"
+            else:
+                self.model_status = f"Loaded {model_path.name}"
             return True
-        except Exception:
+        except Exception as e:
             self.loaded_model = None
             self.loaded_model_mode = None
-            self.model_status = "Model load failed"
+            self.model_status = f"Model load failed: {type(e).__name__}"
             return False
 
     def _pick_model_for_current_mode(self) -> bool:
-        """Open a file picker and load a selected model for active control mode."""
-        if filedialog is None or tk is None:
+        if self.model_pick_thread is not None and self.model_pick_thread.is_alive():
+            self.model_status = "Model picker already open"
+            return False
+
+        def _worker() -> None:
+            try:
+                picked = self._ask_open_filename("Select trained model", self.model_dir)
+            except Exception:
+                picked = None
+            self.model_pick_result = picked
+            self.model_pick_result_ready = True
+
+        self.model_pick_result = None
+        self.model_pick_result_ready = False
+        self.model_pick_thread = threading.Thread(target=_worker, daemon=True)
+        self.model_pick_thread.start()
+        self.model_status = "Opening model picker..."
+        return True
+
+    def _process_pending_model_pick(self) -> None:
+        # Process pending Train-Me popup result
+        if self.trainme_prompt_ready:
+            self.trainme_prompt_ready = False
+            ans = self.trainme_prompt_result
+            self.trainme_prompt_result = None
+
+            if ans is True:
+                self._run_next_train_me_case()
+            elif ans is False:
+                self.new_episode()
+
+        
+        if not self.model_pick_result_ready:
+            return
+
+        self.model_pick_result_ready = False
+        model_path_str = self.model_pick_result
+        self.model_pick_result = None
+
+        if model_path_str is None:
             self.model_status = "File picker unavailable"
-            return False
+            return
+        if model_path_str == "":
+            self.model_status = "Model pick cancelled"
+            return
 
-        try:
-            root = tk.Tk()
-            root.withdraw()
-            root.attributes("-topmost", True)
-            model_path_str = filedialog.askopenfilename(
-                title="Select trained model",
-                initialdir=str(self.model_dir),
-                filetypes=[("Model JSON", "*.json"), ("All files", "*.*")],
-            )
-            root.destroy()
-        except Exception:
-            self.model_status = "File picker failed"
-            return False
-
-        if not model_path_str:
-            return False
-
-        return self._load_model_from_file(Path(model_path_str), self.robot.control_mode)
+        self._load_model_from_file(Path(model_path_str), None)
 
     def _reload_model_for_current_mode(self) -> bool:
-        """Reload currently selected mode model; if none selected, load latest."""
         selected = self.selected_model_paths.get(self.robot.control_mode)
         if selected is not None and selected.exists():
             return self._load_model_from_file(selected, self.robot.control_mode)
         return self._load_latest_model_for_mode(self.robot.control_mode)
 
     def _save_dagger_snapshot(self, tag: str = "snapshot") -> Optional[Path]:
-        """Persist a snapshot of the current map and robot state for DAGGER handoff."""
         snapshot = {
             "timestamp": time.time(),
             "control_mode": self.robot.control_mode,
@@ -1076,7 +1223,6 @@ class SimulatorApp:
             return None
 
     def _load_dagger_snapshot(self, snapshot_path: Path) -> bool:
-        """Restore map and robot state from a saved DAGGER snapshot."""
         try:
             with open(snapshot_path, "r", encoding="utf-8") as f:
                 snap = json.load(f)
@@ -1102,7 +1248,6 @@ class SimulatorApp:
             return False
 
     def _enqueue_train_me_case(self, reason: str) -> None:
-        """Add current model run snapshot to the train-me queue."""
         snap = self.current_model_snapshot_path
         if snap is None or not snap.exists():
             snap = self._save_dagger_snapshot("model_start")
@@ -1117,31 +1262,34 @@ class SimulatorApp:
         self.train_me_queue.append((seq, snap))
         self.model_status = f"Queued case #{seq} ({reason}) | {len(self.train_me_queue)} pending"
 
-    def _prompt_run_train_me(self) -> bool:
-        """Ask whether to run queued train-me cases."""
-        if not self.train_me_queue:
-            return False
+    def _prompt_run_train_me(self):
+        if self.trainme_prompt_thread is not None and self.trainme_prompt_thread.is_alive():
+            return None  # still waiting
 
-        if messagebox is None or tk is None:
-            return True
+        # If a result is ready, return it
+        if self.trainme_prompt_ready:
+            self.trainme_prompt_ready = False
+            return self.trainme_prompt_result
 
-        try:
-            root = tk.Tk()
-            root.withdraw()
-            root.attributes("-topmost", True)
-            go = messagebox.askyesno(
-                "Train-Me Queue",
-                f"There are {len(self.train_me_queue)} queued train-me cases.\n"
-                "Do you want to go through the next case now?",
-                parent=root,
-            )
-            root.destroy()
-            return go
-        except Exception:
-            return True
+        # Otherwise start a new thread
+        def worker():
+            try:
+                ans = self._ask_yes_no(
+                    "Train-Me Queue",
+                    f"There are {len(self.train_me_queue)} queued train-me cases.\n"
+                    "Do you want to go through the next case now?"
+                )
+            except Exception:
+                ans = True  # safe fallback
+            self.trainme_prompt_result = ans
+            self.trainme_prompt_ready = True
+
+        self.trainme_prompt_thread = threading.Thread(target=worker, daemon=True)
+        self.trainme_prompt_thread.start()
+        return None
+
 
     def _run_next_train_me_case(self) -> bool:
-        """Load the next queued train-me map and prompt for human navigation."""
         if not self.train_me_queue:
             return False
 
@@ -1153,15 +1301,23 @@ class SimulatorApp:
         self.human_takeover_prompt_timer = 4.0
         self.active_train_me_case_seq = seq
         self.last_train_me_loaded_seq = seq
-        self.model_status = f"Loaded case #{seq} ({len(self.train_me_queue)} remaining)"
+
+        # --- CRITICAL FIX: FORCE HUMAN CONTROL ---
+        self.input_mode = "keyboard"
+        self.robot.drive_command = {
+            "rotation_rate": 0.0,
+            "drive_speed": 0.0,
+            "vx": 0.0,
+            "vy": 0.0,
+        }
+
+        self.model_status = f"Loaded case #{seq} (HUMAN TAKEOVER)"
         return True
 
     def _trigger_dagger_human_takeover(self) -> None:
-        """Queue current model-run map for later human takeover training."""
         self._enqueue_train_me_case("FAIL")
 
     def _predict_model_output(self, features: np.ndarray) -> Optional[np.ndarray]:
-        """Run forward pass with saved NumPy MLP weights and denormalize outputs."""
         if self.loaded_model is None:
             return None
 
@@ -1179,7 +1335,6 @@ class SimulatorApp:
         return out_norm * y_std + y_mean
 
     def _update_command_from_model(self) -> None:
-        """Compute drive commands from loaded model and current sensor state."""
         if self.loaded_model is None:
             if self.robot.control_mode == "heading_drive":
                 self.robot.drive_command = {"rotation_rate": 0.0, "drive_speed": 0.0}
@@ -1189,7 +1344,9 @@ class SimulatorApp:
                 self.robot.drive_command = {"vx": 0.0, "vy": 0.0}
             return
 
-        features = np.asarray(self.robot.whisker_lengths + [self.robot.heading_to_target_deg], dtype=np.float64).reshape(1, -1)
+        features = np.asarray(self.robot.whisker_lengths + [self.robot.heading_to_target_deg], dtype=np.float64).reshape(
+            1, -1
+        )
         pred = self._predict_model_output(features)
         if pred is None:
             return
@@ -1197,12 +1354,20 @@ class SimulatorApp:
         out = pred[0]
         if self.robot.control_mode == "heading_drive":
             drive_speed = float(np.clip(out[0], -Robot.GAMEPAD_MAX_DRIVE_SPEED_MPS, Robot.GAMEPAD_MAX_DRIVE_SPEED_MPS))
-            rotation_rate = float(np.clip(out[1], -Robot.GAMEPAD_MAX_ROTATE_RATE_DPS, Robot.GAMEPAD_MAX_ROTATE_RATE_DPS))
+            rotation_rate = float(
+                np.clip(out[1], -Robot.GAMEPAD_MAX_ROTATE_RATE_DPS, Robot.GAMEPAD_MAX_ROTATE_RATE_DPS)
+            )
             self.robot.drive_command = {"rotation_rate": rotation_rate, "drive_speed": drive_speed}
         elif self.robot.control_mode == "heading_strafe":
-            rotation_rate = float(np.clip(out[0], -Robot.GAMEPAD_MAX_ROTATE_RATE_DPS, Robot.GAMEPAD_MAX_ROTATE_RATE_DPS))
+            rotation_rate = float(
+                np.clip(out[0], -Robot.GAMEPAD_MAX_ROTATE_RATE_DPS, Robot.GAMEPAD_MAX_ROTATE_RATE_DPS)
+            )
             vx = float(np.clip(out[1], -Robot.GAMEPAD_MAX_DRIVE_SPEED_MPS, Robot.GAMEPAD_MAX_DRIVE_SPEED_MPS))
-            vy = float(np.clip(out[2], -Robot.GAMEPAD_MAX_DRIVE_SPEED_MPS, Robot.GAMEPAD_MAX_DRIVE_SPEED_MPS)) if len(out) > 2 else 0.0
+            vy = (
+                float(np.clip(out[2], -Robot.GAMEPAD_MAX_DRIVE_SPEED_MPS, Robot.GAMEPAD_MAX_DRIVE_SPEED_MPS))
+                if len(out) > 2
+                else 0.0
+            )
             self.robot.drive_command = {"rotation_rate": rotation_rate, "vx": vx, "vy": vy}
         else:
             vx = float(np.clip(out[0], -Robot.GAMEPAD_MAX_DRIVE_SPEED_MPS, Robot.GAMEPAD_MAX_DRIVE_SPEED_MPS))
@@ -1210,21 +1375,38 @@ class SimulatorApp:
             self.robot.drive_command = {"vx": vx, "vy": vy}
 
     def _handle_click(self, pos: Tuple[int, int]) -> None:
+
+        # -----------------------------
+        # RUN BUTTON — ONLY place where
+        # queued cases are processed
+        # -----------------------------
         if self.run_button_rect.collidepoint(pos):
-            if self.train_me_queue and self._prompt_run_train_me():
-                self._run_next_train_me_case()
+            if self.train_me_queue:
+                ans = self._prompt_run_train_me()
+                if ans is True:
+                    self._run_next_train_me_case()
+                elif ans is False:
+                    self.new_episode()
+                # If ans is None, popup still loading — do nothing
             else:
                 self.new_episode()
             return
 
+        # -----------------------------
+        # FAIL BUTTON — ONLY queues cases
+        # NEVER processes queue
+        # -----------------------------
         if self.fail_button_rect.collidepoint(pos):
             if self.input_mode == "model":
                 self._trigger_dagger_human_takeover()
-                self.new_episode()
+                self.new_episode()   # restart map, do NOT process queue
             else:
                 self.model_status = "FAIL button requires Model input mode"
             return
 
+        # -----------------------------
+        # Everything below here is unchanged
+        # -----------------------------
         if self.obs_minus_rect.collidepoint(pos):
             self.obstacle_count = max(1, self.obstacle_count - 1)
             return
@@ -1235,12 +1417,12 @@ class SimulatorApp:
 
         if self.hist_minus_rect.collidepoint(pos):
             self.history_len = max(1, self.history_len - 1)
-            self.history_buffer = deque(list(self.history_buffer)[-self.history_len :], maxlen=self.history_len)
+            self.history_buffer = deque(list(self.history_buffer)[-self.history_len:], maxlen=self.history_len)
             return
 
         if self.hist_plus_rect.collidepoint(pos):
             self.history_len = min(10, self.history_len + 1)
-            self.history_buffer = deque(list(self.history_buffer)[-self.history_len :], maxlen=self.history_len)
+            self.history_buffer = deque(list(self.history_buffer)[-self.history_len:], maxlen=self.history_len)
             return
 
         if self.rate_minus_rect.collidepoint(pos):
@@ -1265,10 +1447,28 @@ class SimulatorApp:
 
         if self.radio_keyboard_rect.collidepoint(pos):
             self.input_mode = "keyboard"
+
+            # If there are queued cases, prompt immediately
+            if self.train_me_queue:
+                ans = self._prompt_run_train_me()
+                if ans is True:
+                    self._run_next_train_me_case()
+                elif ans is False:
+                    self.new_episode()
+                # If ans is None, popup still loading — do nothing
             return
+
 
         if self.radio_gamepad_rect.collidepoint(pos):
             self.input_mode = "gamepad"
+
+            # If there are queued cases, prompt immediately
+            if self.train_me_queue:
+                ans = self._prompt_run_train_me()
+                if ans is True:
+                    self._run_next_train_me_case()
+                elif ans is False:
+                    self.new_episode()
             return
 
         if self.radio_model_rect.collidepoint(pos):
@@ -1287,9 +1487,12 @@ class SimulatorApp:
         if self.checkbox_logging_rect.collidepoint(pos):
             self.logging_enabled = not self.logging_enabled
             return
+
         if self.checkbox_robot_view_rect.collidepoint(pos):
             self.robot_aligned_view = not self.robot_aligned_view
             return
+
+
     def _draw_arrow(self, start_m: Vec2, vec_m: Vec2, color: Tuple[int, int, int], width: int = 3) -> None:
         start_px = self.world_to_screen(float(start_m[0]), float(start_m[1]))
         end = start_m + vec_m
@@ -1312,7 +1515,6 @@ class SimulatorApp:
         pygame.draw.polygon(self.screen, color, [end_px, left, right])
 
     def _draw_goal_compass_arrow(self) -> None:
-        """Draw a compass-style arrow (0.6m) from robot origin toward current goal."""
         if self.target is None:
             return
 
@@ -1464,7 +1666,6 @@ class SimulatorApp:
         self._render_text("Control Mode", self.toolbar_rect.left + 12, row2_y + 4, small=True)
         self._draw_radio(self.radio_heading_rect, self.robot.control_mode == "heading_drive", "Heading+Drive")
         self._draw_radio(self.radio_xy_rect, self.robot.control_mode == "xy_strafe", "XY Strafe")
-
         self._draw_radio(self.radio_heading_strafe_rect, self.robot.control_mode == "heading_strafe", "Hdg+Strafe")
 
         self._render_text("Input Source", self.toolbar_rect.left + 12, row3_y + 4, small=True)
@@ -1493,7 +1694,12 @@ class SimulatorApp:
         self._render_text(self.model_status[:36], self.panel_rect.left + 22, self.panel_rect.top + 34, model_color, small=True)
         next_seq = str(self.train_me_queue[0][0]) if self.train_me_queue else "-"
         last_seq = str(self.last_train_me_loaded_seq) if self.last_train_me_loaded_seq is not None else "-"
-        self._render_text(f"Q:{len(self.train_me_queue)} N:{next_seq} L:{last_seq}", self.panel_rect.left + 22, self.panel_rect.top + 54, small=True)
+        self._render_text(
+            f"Q:{len(self.train_me_queue)} N:{next_seq} L:{last_seq}",
+            self.panel_rect.left + 22,
+            self.panel_rect.top + 54,
+            small=True,
+        )
 
         self._render_text("Drive Command", self.panel_rect.left + 22, self.panel_rect.top + 88, small=True)
         if self.robot.control_mode == "heading_drive":
@@ -1573,6 +1779,9 @@ class SimulatorApp:
         while running:
             dt = self.clock.tick(self.FPS) / 1000.0
 
+            # -------------------------
+            # EVENT HANDLING
+            # -------------------------
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     running = False
@@ -1586,19 +1795,45 @@ class SimulatorApp:
                 elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                     self._handle_click(event.pos)
 
+            # -------------------------
+            # PROCESS MODEL PICK POPUP
+            # -------------------------
+            self._process_pending_model_pick()
+
+            # -------------------------
+            # PROCESS TRAIN-ME POPUP RESULT
+            # (THIS IS THE FIX YOU NEEDED)
+            # -------------------------
+            if self.trainme_prompt_ready:
+                self.trainme_prompt_ready = False
+                ans = self.trainme_prompt_result
+                self.trainme_prompt_result = None
+
+                if ans is True:
+                    self._run_next_train_me_case()
+                elif ans is False:
+                    self.new_episode()
+
+            # -------------------------
+            # SIMULATION UPDATE
+            # -------------------------
             self.update_robot_command()
             self.whisker_segments = self.robot.step(dt, self.obstacles)
             self.robot.update_heading_to_target(self.target)
-            
-            # Logging: dynamic cadence by context
+
+            # -------------------------
+            # LOGGING
+            # -------------------------
             self.log_timer += dt
             log_interval = self._current_log_interval()
             if log_interval is not None and self.log_timer >= log_interval:
                 self.in_memory_log.append(self._collect_log_entry())
                 self.log_timer = 0.0
-            
+
+            # -------------------------
+            # GOAL / COLLISION HANDLING
+            # -------------------------
             if self.check_goal_reached():
-                # Goal reached: write log if present
                 if self.logging_enabled and self.in_memory_log:
                     self._write_log_to_file()
                 self.in_memory_log = []
@@ -1606,20 +1841,26 @@ class SimulatorApp:
                     self._run_next_train_me_case()
                 else:
                     self.new_episode()
+
             elif self.robot.collision_flag or self.check_whisker_collision():
                 print("COLLISION")
                 if self.input_mode == "model":
                     self._enqueue_train_me_case("collision")
-                # Collision: clear log without writing to disk
                 self.in_memory_log = []
                 self.collision_display_timer = 0.5
                 self.new_episode()
-            
+
+            # -------------------------
+            # TIMERS
+            # -------------------------
             if self.collision_display_timer > 0.0:
                 self.collision_display_timer = max(0.0, self.collision_display_timer - dt)
             if self.human_takeover_prompt_timer > 0.0:
                 self.human_takeover_prompt_timer = max(0.0, self.human_takeover_prompt_timer - dt)
 
+            # -------------------------
+            # DRAWING
+            # -------------------------
             self.screen.fill(self.BG_COLOR)
             self._draw_top_bar()
             self._draw_simulation()
@@ -1631,6 +1872,7 @@ class SimulatorApp:
             pygame.display.flip()
 
         pygame.quit()
+
 
 
 def main() -> None:

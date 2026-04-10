@@ -10,3 +10,7 @@ __pycache__/
 # VS Code artifacts
 .vscode/
 *.code-workspace
+
+# venv
+venv/
+.venv/
