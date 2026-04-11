@@ -368,6 +368,13 @@ class Robot:
                 "rotation_rate": a0 * self.GAMEPAD_MAX_ROTATE_RATE_DPS,
                 "drive_speed": a1 * self.GAMEPAD_MAX_DRIVE_SPEED_MPS,
             }
+        elif self.control_mode == "heading_strafe":
+            a2 = float(np.clip(action[2], -1.0, 1.0))
+            self.drive_command = {
+                "rotation_rate": a0 * self.GAMEPAD_MAX_ROTATE_RATE_DPS,
+                "vx": a1 * self.GAMEPAD_MAX_DRIVE_SPEED_MPS,
+                "vy": a2 * self.GAMEPAD_MAX_DRIVE_SPEED_MPS,
+            }
         else:
             self.drive_command = {
                 "vx": a0 * self.GAMEPAD_MAX_DRIVE_SPEED_MPS,

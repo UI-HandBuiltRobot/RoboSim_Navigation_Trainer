@@ -1,6 +1,6 @@
 """Benchmark map generation and headless model evaluation GUI.
 
-This tool creates reproducible benchmark scenarios and evaluates IL JSON or PPO ZIP
+This tool creates reproducible benchmark scenarios and evaluates IL JSON
 models on the exact same maps for apples-to-apples comparisons.
 """
 
@@ -12,7 +12,7 @@ import time
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import numpy as np
 import tkinter as tk
@@ -21,21 +21,15 @@ from tkinter import filedialog, messagebox, ttk
 from headless_sim import HeadlessSimulator
 from sim_core import Robot
 
-try:
-    from stable_baselines3 import PPO
-except Exception:
-    PPO = None
-
 _STATE_DIM = 12
 
 
 @dataclass
 class LoadedModel:
-    model_type: str  # "il" or "ppo"
+    model_type: str  # "il"
     mode: str
     history_window: int
     il_blob: Optional[Dict[str, Any]] = None
-    ppo_model: Any = None
 
 
 def _n_action_for_mode(mode: str) -> int:
@@ -86,22 +80,7 @@ def load_model_with_inferred_history(model_path: Path, fallback_mode: str) -> Lo
         history = _history_from_dim(il["input_dim"], n_action)
         return LoadedModel(model_type="il", mode=mode, history_window=history, il_blob=il)
 
-    if suffix == ".zip":
-        if PPO is None:
-            raise RuntimeError("stable-baselines3 is not installed; cannot load PPO ZIP models.")
-        ppo_model = PPO.load(str(model_path.with_suffix("")))
-        action_dim = int(ppo_model.action_space.shape[0])
-        obs_dim = int(ppo_model.observation_space.shape[0])
-
-        if action_dim == 3:
-            mode = "heading_strafe"
-        else:
-            mode = fallback_mode or "heading_drive"
-
-        history = _history_from_dim(obs_dim, action_dim)
-        return LoadedModel(model_type="ppo", mode=mode, history_window=history, ppo_model=ppo_model)
-
-    raise ValueError("Unsupported model type. Pick an IL .json or PPO .zip model.")
+    raise ValueError("Unsupported model type. Pick an IL .json model.")
 
 
 def _predict_il_physical(il_blob: Dict[str, Any], obs_row: np.ndarray) -> np.ndarray:
@@ -121,11 +100,6 @@ def _predict_il_physical(il_blob: Dict[str, Any], obs_row: np.ndarray) -> np.nda
 
 def _to_env_normalized_action(mode: str, model: LoadedModel, output: np.ndarray) -> np.ndarray:
     out = np.asarray(output, dtype=np.float64).reshape(-1)
-
-    if model.model_type == "ppo":
-        if mode == "heading_strafe" and out.shape[0] < 3:
-            out = np.pad(out, (0, 3 - out.shape[0]))
-        return np.clip(out, -1.0, 1.0).astype(np.float32)
 
     # IL output is in physical units.
     if mode == "heading_drive":
@@ -177,7 +151,6 @@ def generate_benchmark_maps(
     min_obstacles: int,
     max_obstacles: int,
     base_seed: int,
-    control_mode: str,
 ) -> Dict[str, Any]:
     folder.mkdir(parents=True, exist_ok=True)
 
@@ -192,7 +165,8 @@ def generate_benchmark_maps(
 
         sim = HeadlessSimulator(
             seed=seed_i,
-            control_mode=control_mode,
+            # Geometry generation is independent of control mode.
+            control_mode="heading_drive",
             history_window=1,
             n_obstacles=obs_count,
         )
@@ -202,7 +176,6 @@ def generate_benchmark_maps(
         payload = {
             "map_index": i,
             "seed": seed_i,
-            "control_mode": control_mode,
             "n_obstacles": int(len(state["obstacles"])),
             "robot_pose": state["robot_pose"],
             "target": state["target"],
@@ -220,7 +193,6 @@ def generate_benchmark_maps(
         "min_obstacles": int(min_obstacles),
         "max_obstacles": int(max_obstacles),
         "base_seed": int(base_seed),
-        "control_mode": control_mode,
         "files": generated_paths,
     }
     with open(folder / "manifest.json", "w", encoding="utf-8") as f:
@@ -232,11 +204,13 @@ def generate_benchmark_maps(
 def evaluate_model_on_maps(
     model: LoadedModel,
     scenarios: List[Dict[str, Any]],
+    progress_callback: Optional[Callable[[int, int], None]] = None,
 ) -> Dict[str, Any]:
     per_map: List[Dict[str, Any]] = []
+    total = len(scenarios)
 
-    for scenario in scenarios:
-        mode = str(scenario.get("control_mode", model.mode))
+    for idx, scenario in enumerate(scenarios, start=1):
+        mode = model.mode
         sim = HeadlessSimulator(
             seed=int(scenario.get("seed", 0)),
             control_mode=mode,
@@ -250,12 +224,8 @@ def evaluate_model_on_maps(
         steps = 0
 
         while not done:
-            if model.model_type == "ppo":
-                action_out, _ = model.ppo_model.predict(obs.astype(np.float32), deterministic=True)
-                env_action = _to_env_normalized_action(mode, model, action_out)
-            else:
-                il_out = _predict_il_physical(model.il_blob, obs.astype(np.float64).reshape(1, -1))
-                env_action = _to_env_normalized_action(mode, model, il_out)
+            il_out = _predict_il_physical(model.il_blob, obs.astype(np.float64).reshape(1, -1))
+            env_action = _to_env_normalized_action(mode, model, il_out)
 
             obs, _reward, terminated, truncated, info = sim.step(env_action)
             done = bool(terminated or truncated)
@@ -280,6 +250,8 @@ def evaluate_model_on_maps(
             "n_obstacles": int(scenario.get("n_obstacles", len(scenario.get("obstacles", [])))),
         }
         per_map.append(record)
+        if progress_callback is not None:
+            progress_callback(idx, total)
 
     n = len(per_map)
     success = sum(1 for r in per_map if r["success"])
@@ -308,12 +280,13 @@ class BenchmarkGui:
 
         self.model_path_var = tk.StringVar(value="trained_models/model_heading_002.json")
         self.benchmark_dir_var = tk.StringVar(value="benchmark")
-        self.mode_var = tk.StringVar(value="heading_drive")
 
         self.maps_count_var = tk.IntVar(value=100)
         self.min_obs_var = tk.IntVar(value=15)
         self.max_obs_var = tk.IntVar(value=35)
         self.seed_var = tk.IntVar(value=20260410)
+        self.progress_var = tk.DoubleVar(value=0.0)
+        self.progress_text_var = tk.StringVar(value="Progress: 0/0")
 
         self.status_var = tk.StringVar(value="Ready")
         self._running = False
@@ -329,15 +302,6 @@ class BenchmarkGui:
         ttk.Label(top, text="Benchmark folder").grid(row=0, column=0, sticky="w", **pad)
         ttk.Entry(top, textvariable=self.benchmark_dir_var, width=55).grid(row=0, column=1, sticky="ew", **pad)
         ttk.Button(top, text="Browse", command=self._pick_benchmark_folder).grid(row=0, column=2, **pad)
-
-        ttk.Label(top, text="Control mode").grid(row=1, column=0, sticky="w", **pad)
-        ttk.Combobox(
-            top,
-            textvariable=self.mode_var,
-            values=["heading_drive", "xy_strafe", "heading_strafe"],
-            state="readonly",
-            width=18,
-        ).grid(row=1, column=1, sticky="w", **pad)
 
         ttk.Label(top, text="# maps").grid(row=2, column=0, sticky="w", **pad)
         ttk.Spinbox(top, from_=1, to=5000, textvariable=self.maps_count_var, width=8).grid(row=2, column=1, sticky="w", **pad)
@@ -361,12 +325,24 @@ class BenchmarkGui:
         eval_frame = ttk.LabelFrame(self.root, text="Model Evaluation")
         eval_frame.pack(fill="x", padx=10, pady=6)
 
-        ttk.Label(eval_frame, text="Model file (.json or .zip)").grid(row=0, column=0, sticky="w", **pad)
+        ttk.Label(eval_frame, text="Model file (.json)").grid(row=0, column=0, sticky="w", **pad)
         ttk.Entry(eval_frame, textvariable=self.model_path_var, width=55).grid(row=0, column=1, sticky="ew", **pad)
         ttk.Button(eval_frame, text="Browse", command=self._pick_model).grid(row=0, column=2, **pad)
 
         ttk.Button(eval_frame, text="Run Evaluation", command=self._on_run_eval).grid(
             row=1, column=0, columnspan=3, sticky="ew", padx=8, pady=10
+        )
+
+        self.progress_bar = ttk.Progressbar(
+            eval_frame,
+            orient="horizontal",
+            mode="determinate",
+            variable=self.progress_var,
+            maximum=100.0,
+        )
+        self.progress_bar.grid(row=2, column=0, columnspan=3, sticky="ew", padx=8, pady=(0, 6))
+        ttk.Label(eval_frame, textvariable=self.progress_text_var, anchor="w").grid(
+            row=3, column=0, columnspan=3, sticky="ew", padx=8, pady=(0, 8)
         )
 
         eval_frame.columnconfigure(1, weight=1)
@@ -390,10 +366,18 @@ class BenchmarkGui:
         self.results_text.see("end")
         self.root.update_idletasks()
 
+    def _update_progress(self, current: int, total: int) -> None:
+        total_safe = max(1, int(total))
+        current_safe = max(0, min(int(current), total_safe))
+        pct = 100.0 * current_safe / total_safe
+        self.progress_var.set(pct)
+        self.progress_text_var.set(f"Progress: {current_safe}/{total_safe} ({pct:.1f}%)")
+        self.root.update_idletasks()
+
     def _pick_model(self) -> None:
         p = filedialog.askopenfilename(
             title="Select model",
-            filetypes=[("Model files", "*.json *.zip"), ("IL JSON", "*.json"), ("PPO ZIP", "*.zip"), ("All files", "*.*")],
+            filetypes=[("IL JSON", "*.json"), ("All files", "*.*")],
         )
         if p:
             self.model_path_var.set(p)
@@ -415,7 +399,6 @@ class BenchmarkGui:
                 min_obstacles=int(self.min_obs_var.get()),
                 max_obstacles=int(self.max_obs_var.get()),
                 base_seed=int(self.seed_var.get()),
-                control_mode=str(self.mode_var.get()),
             )
             self._append_results("Generated benchmark maps")
             self._append_results(json.dumps(manifest, indent=2))
@@ -427,6 +410,8 @@ class BenchmarkGui:
         if self._running:
             return
         self._running = True
+        self._update_progress(0, 1)
+        self.progress_text_var.set("Progress: preparing benchmark...")
         self._set_status("Running evaluation...")
         thread = threading.Thread(target=self._run_eval_worker, daemon=True)
         thread.start()
@@ -437,11 +422,16 @@ class BenchmarkGui:
             bench_dir = Path(self.benchmark_dir_var.get()).expanduser().resolve()
 
             scenarios = _load_benchmark_maps(bench_dir)
-            fallback_mode = str(scenarios[0].get("control_mode", self.mode_var.get()))
+            fallback_mode = "heading_drive"
             loaded = load_model_with_inferred_history(model_path, fallback_mode=fallback_mode)
 
             t0 = time.time()
-            report = evaluate_model_on_maps(loaded, scenarios)
+            self.root.after(0, self._update_progress, 0, len(scenarios))
+            report = evaluate_model_on_maps(
+                loaded,
+                scenarios,
+                progress_callback=lambda done, total: self.root.after(0, self._update_progress, done, total),
+            )
             elapsed = time.time() - t0
 
             summary = report["summary"]
@@ -474,6 +464,7 @@ class BenchmarkGui:
             self.root.after(0, self._append_results, f"Collision fails: {summary['collision_fail_count']}")
             self.root.after(0, self._append_results, f"Stuck failures: {summary['stuck_fail_count']}")
             self.root.after(0, self._append_results, f"Saved report: {out_path}")
+            self.root.after(0, self._update_progress, len(scenarios), len(scenarios))
             self.root.after(0, self._set_status, f"Evaluation done in {elapsed:.2f}s")
         except Exception as e:
             self.root.after(0, lambda: messagebox.showerror("Evaluation failed", str(e)))

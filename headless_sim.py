@@ -8,7 +8,7 @@ from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 
-# Physical scales mapping normalized PPO action [-1,1] → physical units.
+# Physical scales mapping normalized policy action [-1,1] to physical units.
 # Must match sim_core.Robot.apply_normalized_action.
 _PHYSICAL_SCALES: Dict[str, np.ndarray] = {
     "heading_drive":   np.array([40.0, 0.40], dtype=np.float32),
@@ -23,7 +23,7 @@ _N_ACTION: Dict[str, int] = {
 }
 
 # IL training feature order for action history terms.
-# PPO action in heading_drive is [rotation_rate_norm, drive_speed_norm], but IL
+# The normalized action in heading_drive is [rotation_rate_norm, drive_speed_norm], but IL
 # logs/features are [drive_speed_mps, rotation_rate_dps]. We reorder accordingly.
 _ACTION_FEATURE_ORDER: Dict[str, np.ndarray] = {
     "heading_drive": np.array([1, 0], dtype=np.int64),

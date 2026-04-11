@@ -11,11 +11,6 @@ from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import pygame
-
-try:
-    from stable_baselines3 import PPO
-except ImportError:
-    PPO = None
 from sim_core import (
     ROOM_HEIGHT,
     ROOM_WIDTH,
@@ -117,8 +112,6 @@ class SimulatorApp:
 
         self.model_dir = Path.cwd() / "trained_models"
         self.loaded_model: Optional[Dict[str, np.ndarray]] = None
-        self.loaded_model_ppo: Optional[PPO] = None
-        self.loaded_model_type: Optional[str] = None  # "il" or "ppo"
         self.loaded_model_mode: Optional[str] = None
         self.selected_model_paths: Dict[str, Path] = {}
         self.model_status = "No model loaded"
@@ -519,11 +512,6 @@ class SimulatorApp:
         mode = self.robot.control_mode
         n_action = len(self._command_keys_for_mode(mode))
         state_dim = 12  # 11 whiskers + heading_to_target
-        if self.loaded_model_ppo is not None:
-            obs_dim = int(self.loaded_model_ppo.observation_space.shape[0])
-            denom = state_dim + n_action
-            if obs_dim >= state_dim and denom > 0 and (obs_dim + n_action) % denom == 0:
-                return max(1, (obs_dim + n_action) // denom)
         if self.loaded_model is not None:
             input_dim = int(self.loaded_model.get("input_dim", 0))
             denom = state_dim + n_action
@@ -662,47 +650,35 @@ class SimulatorApp:
         return self._load_model_from_file(model_path, mode)
 
     def _load_model_from_file(self, model_path: Path, expected_mode: str) -> bool:
-        """Load IL JSON or PPO ZIP model and validate control mode match."""
+        """Load IL JSON model and validate control mode match."""
         try:
-            if str(model_path).lower().endswith(".zip"):
-                # Load PPO ZIP model
-                if PPO is None:
-                    self.model_status = "SB3 not installed; cannot load ZIP"
-                    return False
-                try:
-                    ppo_model = PPO.load(str(model_path.with_suffix("")))
-                    self.loaded_model_ppo = ppo_model
-                    self.loaded_model = None
-                    self.loaded_model_type = "ppo"
-                except Exception as e:
-                    self.model_status = f"PPO load error: {str(e)[:50]}"
-                    return False
-            else:
-                # Load IL JSON model
-                with open(model_path, "r", encoding="utf-8") as f:
-                    blob = json.load(f)
+            if model_path.suffix.lower() != ".json":
+                self.model_status = "Unsupported model type (expected .json)"
+                return False
 
-                file_mode = blob.get("mode")
-                if file_mode is not None and file_mode != expected_mode:
-                    self.loaded_model = None
-                    self.loaded_model_mode = None
-                    self.model_status = f"Mode mismatch in {model_path.name}"
-                    return False
+            # Load IL JSON model
+            with open(model_path, "r", encoding="utf-8") as f:
+                blob = json.load(f)
 
-                weights = [np.asarray(w, dtype=np.float64) for w in blob["weights"]]
-                biases = [np.asarray(b, dtype=np.float64) for b in blob["biases"]]
+            file_mode = blob.get("mode")
+            if file_mode is not None and file_mode != expected_mode:
+                self.loaded_model = None
+                self.loaded_model_mode = None
+                self.model_status = f"Mode mismatch in {model_path.name}"
+                return False
 
-                self.loaded_model = {
-                    "weights": weights,
-                    "biases": biases,
-                    "x_mean": np.asarray(blob["x_mean"], dtype=np.float64),
-                    "x_std": np.asarray(blob["x_std"], dtype=np.float64),
-                    "y_mean": np.asarray(blob["y_mean"], dtype=np.float64),
-                    "y_std": np.asarray(blob["y_std"], dtype=np.float64),
-                    "input_dim": int(blob.get("input_dim", weights[0].shape[0])),
-                }
-                self.loaded_model_ppo = None
-                self.loaded_model_type = "il"
+            weights = [np.asarray(w, dtype=np.float64) for w in blob["weights"]]
+            biases = [np.asarray(b, dtype=np.float64) for b in blob["biases"]]
+
+            self.loaded_model = {
+                "weights": weights,
+                "biases": biases,
+                "x_mean": np.asarray(blob["x_mean"], dtype=np.float64),
+                "x_std": np.asarray(blob["x_std"], dtype=np.float64),
+                "y_mean": np.asarray(blob["y_mean"], dtype=np.float64),
+                "y_std": np.asarray(blob["y_std"], dtype=np.float64),
+                "input_dim": int(blob.get("input_dim", weights[0].shape[0])),
+            }
 
             self.model_inference_buffer.clear()
             self.loaded_model_mode = expected_mode
@@ -714,8 +690,6 @@ class SimulatorApp:
             return True
         except Exception as e:
             self.loaded_model = None
-            self.loaded_model_ppo = None
-            self.loaded_model_type = None
             self.loaded_model_mode = None
             self.model_status = f"Model load failed: {str(e)[:40]}"
             return False
@@ -729,7 +703,7 @@ class SimulatorApp:
         model_path_str = self._safe_askopenfilename(
             title="Select trained model",
             initialdir=str(self.model_dir),
-            filetypes=[("Model files", "*.json *.zip"), ("IL JSON", "*.json"), ("PPO ZIP", "*.zip"), ("All files", "*.*")],
+            filetypes=[("IL JSON", "*.json"), ("All files", "*.*")],
         )
         if model_path_str is None:
             self.model_status = "File picker failed"
@@ -967,6 +941,13 @@ class SimulatorApp:
             self.model_status = f"Failed to load case #{seq}: {snapshot_path.name}"
             return False
 
+        # Snapshot has been consumed into live simulator state; remove file to avoid buildup.
+        try:
+            if snapshot_path.exists():
+                snapshot_path.unlink()
+        except Exception:
+            pass
+
         self.human_takeover_prompt_timer = 4.0
         self.active_train_me_case_seq = seq
         self.last_train_me_loaded_seq = seq
@@ -978,33 +959,25 @@ class SimulatorApp:
         self._enqueue_train_me_case("FAIL")
 
     def _predict_model_output(self, features: np.ndarray) -> Optional[np.ndarray]:
-        """Run forward pass with either IL (NumPy MLP) or PPO (SB3) model."""
-        if self.loaded_model_type == "ppo":
-            if self.loaded_model_ppo is None:
-                return None
-            # PPO.predict returns (action, _); action is already in [-1, 1] normalized space.
-            action, _ = self.loaded_model_ppo.predict(features, deterministic=True)
-            return action.reshape(1, -1)
-        else:
-            # IL (NumPy MLP) inference
-            if self.loaded_model is None:
-                return None
-            x_mean = self.loaded_model["x_mean"]
-            x_std = np.where(np.abs(self.loaded_model["x_std"]) < 1e-6, 1.0, self.loaded_model["x_std"])
-            y_mean = self.loaded_model["y_mean"]
-            y_std = np.where(np.abs(self.loaded_model["y_std"]) < 1e-6, 1.0, self.loaded_model["y_std"])
-            weights = self.loaded_model["weights"]
-            biases = self.loaded_model["biases"]
+        """Run IL (NumPy MLP) forward pass."""
+        if self.loaded_model is None:
+            return None
+        x_mean = self.loaded_model["x_mean"]
+        x_std = np.where(np.abs(self.loaded_model["x_std"]) < 1e-6, 1.0, self.loaded_model["x_std"])
+        y_mean = self.loaded_model["y_mean"]
+        y_std = np.where(np.abs(self.loaded_model["y_std"]) < 1e-6, 1.0, self.loaded_model["y_std"])
+        weights = self.loaded_model["weights"]
+        biases = self.loaded_model["biases"]
 
-            a = (features - x_mean) / x_std
-            for i in range(len(weights) - 1):
-                a = np.maximum(0.0, a @ weights[i] + biases[i])
-            out_norm = a @ weights[-1] + biases[-1]
-            return out_norm * y_std + y_mean
+        a = (features - x_mean) / x_std
+        for i in range(len(weights) - 1):
+            a = np.maximum(0.0, a @ weights[i] + biases[i])
+        out_norm = a @ weights[-1] + biases[-1]
+        return out_norm * y_std + y_mean
 
     def _update_command_from_model(self) -> None:
         """Compute drive commands from loaded model and current sensor state."""
-        if self.loaded_model is None and self.loaded_model_ppo is None:
+        if self.loaded_model is None:
             if self.robot.control_mode == "heading_drive":
                 self.robot.drive_command = {"rotation_rate": 0.0, "drive_speed": 0.0}
             elif self.robot.control_mode == "heading_strafe":
@@ -1017,17 +990,10 @@ class SimulatorApp:
         action_keys = self._command_keys_for_mode(mode)
         n_action = len(action_keys)
         state_dim = 12  # 11 whiskers + heading_to_target
-        
-        # Derive history_len from model type
-        if self.loaded_model_type == "ppo":
-            # PPO: obs_dim = 12*N + n_action*(N-1) = (12 + n_action)*N - n_action
-            # => N = (obs_dim + n_action) / (12 + n_action)
-            obs_dim = self.loaded_model_ppo.observation_space.shape[0]
-            history_len = (obs_dim + n_action) // (state_dim + n_action)
-        else:
-            # IL: use input_dim from model metadata
-            input_dim = self.loaded_model["input_dim"]
-            history_len = (input_dim + n_action) // (state_dim + n_action)
+
+        # IL: use input_dim from model metadata
+        input_dim = self.loaded_model["input_dim"]
+        history_len = (input_dim + n_action) // (state_dim + n_action)
 
         # Capture current state (action field = last issued drive_command)
         self.model_inference_buffer.append(self._capture_timestep_record(mode))
@@ -1046,38 +1012,24 @@ class SimulatorApp:
                 for k in action_keys:
                     feat.append(float(action_map.get(k, 0.0)))
 
-        features = np.asarray(feat, dtype=np.float32 if self.loaded_model_type == "ppo" else np.float64).reshape(1, -1)
+        features = np.asarray(feat, dtype=np.float64).reshape(1, -1)
         pred = self._predict_model_output(features)
         if pred is None:
             return
 
         out = pred[0]
         if self.robot.control_mode == "heading_drive":
-            # For IL: out = [drive_speed, rotation_rate]; for PPO: out = [rotation_rate, drive_speed]
-            if self.loaded_model_type == "ppo":
-                rotation_rate = float(np.clip(out[0], -1.0, 1.0)) * Robot.GAMEPAD_MAX_ROTATE_RATE_DPS
-                drive_speed = float(np.clip(out[1], -1.0, 1.0)) * Robot.GAMEPAD_MAX_DRIVE_SPEED_MPS
-            else:
-                drive_speed = float(np.clip(out[0], -Robot.GAMEPAD_MAX_DRIVE_SPEED_MPS, Robot.GAMEPAD_MAX_DRIVE_SPEED_MPS))
-                rotation_rate = float(np.clip(out[1], -Robot.GAMEPAD_MAX_ROTATE_RATE_DPS, Robot.GAMEPAD_MAX_ROTATE_RATE_DPS))
+            drive_speed = float(np.clip(out[0], -Robot.GAMEPAD_MAX_DRIVE_SPEED_MPS, Robot.GAMEPAD_MAX_DRIVE_SPEED_MPS))
+            rotation_rate = float(np.clip(out[1], -Robot.GAMEPAD_MAX_ROTATE_RATE_DPS, Robot.GAMEPAD_MAX_ROTATE_RATE_DPS))
             self.robot.drive_command = {"rotation_rate": rotation_rate, "drive_speed": drive_speed}
         elif self.robot.control_mode == "heading_strafe":
-            if self.loaded_model_type == "ppo":
-                rotation_rate = float(np.clip(out[0], -1.0, 1.0)) * Robot.GAMEPAD_MAX_ROTATE_RATE_DPS
-                vx = float(np.clip(out[1], -1.0, 1.0)) * Robot.GAMEPAD_MAX_DRIVE_SPEED_MPS
-                vy = float(np.clip(out[2], -1.0, 1.0)) * Robot.GAMEPAD_MAX_DRIVE_SPEED_MPS if len(out) > 2 else 0.0
-            else:
-                rotation_rate = float(np.clip(out[0], -Robot.GAMEPAD_MAX_ROTATE_RATE_DPS, Robot.GAMEPAD_MAX_ROTATE_RATE_DPS))
-                vx = float(np.clip(out[1], -Robot.GAMEPAD_MAX_DRIVE_SPEED_MPS, Robot.GAMEPAD_MAX_DRIVE_SPEED_MPS))
-                vy = float(np.clip(out[2], -Robot.GAMEPAD_MAX_DRIVE_SPEED_MPS, Robot.GAMEPAD_MAX_DRIVE_SPEED_MPS)) if len(out) > 2 else 0.0
+            rotation_rate = float(np.clip(out[0], -Robot.GAMEPAD_MAX_ROTATE_RATE_DPS, Robot.GAMEPAD_MAX_ROTATE_RATE_DPS))
+            vx = float(np.clip(out[1], -Robot.GAMEPAD_MAX_DRIVE_SPEED_MPS, Robot.GAMEPAD_MAX_DRIVE_SPEED_MPS))
+            vy = float(np.clip(out[2], -Robot.GAMEPAD_MAX_DRIVE_SPEED_MPS, Robot.GAMEPAD_MAX_DRIVE_SPEED_MPS)) if len(out) > 2 else 0.0
             self.robot.drive_command = {"rotation_rate": rotation_rate, "vx": vx, "vy": vy}
         else:
-            if self.loaded_model_type == "ppo":
-                vx = float(np.clip(out[0], -1.0, 1.0)) * Robot.GAMEPAD_MAX_DRIVE_SPEED_MPS
-                vy = float(np.clip(out[1], -1.0, 1.0)) * Robot.GAMEPAD_MAX_DRIVE_SPEED_MPS
-            else:
-                vx = float(np.clip(out[0], -Robot.GAMEPAD_MAX_DRIVE_SPEED_MPS, Robot.GAMEPAD_MAX_DRIVE_SPEED_MPS))
-                vy = float(np.clip(out[1], -Robot.GAMEPAD_MAX_DRIVE_SPEED_MPS, Robot.GAMEPAD_MAX_DRIVE_SPEED_MPS))
+            vx = float(np.clip(out[0], -Robot.GAMEPAD_MAX_DRIVE_SPEED_MPS, Robot.GAMEPAD_MAX_DRIVE_SPEED_MPS))
+            vy = float(np.clip(out[1], -Robot.GAMEPAD_MAX_DRIVE_SPEED_MPS, Robot.GAMEPAD_MAX_DRIVE_SPEED_MPS))
             self.robot.drive_command = {"vx": vx, "vy": vy}
 
     def _handle_click(self, pos: Tuple[int, int]) -> None:
@@ -1564,7 +1516,10 @@ class SimulatorApp:
                 # Collision: clear log without writing to disk
                 self.in_memory_log = []
                 self.collision_display_timer = 0.5
-                self.new_episode()
+                if self.active_train_me_case_seq is not None and self.train_me_queue:
+                    self._run_next_train_me_case()
+                else:
+                    self.new_episode()
             
             if self.collision_display_timer > 0.0:
                 self.collision_display_timer = max(0.0, self.collision_display_timer - dt)
