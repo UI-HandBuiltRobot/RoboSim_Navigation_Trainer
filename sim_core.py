@@ -258,10 +258,14 @@ class Robot:
         self.collision_flash_timer = 0.0
 
     def compute_heading_to_target(self, target_x: float, target_y: float) -> float:
+        # Right-hand (z-up) positive yaw convention: target to the robot's LEFT
+        # yields a positive angle; target to the RIGHT yields a negative angle.
+        # A positive heading_to_target is therefore reduced by a positive
+        # rotation_rate (CCW, turn-left) in the same right-hand convention.
         dx = target_x - self.x
         dy = target_y - self.y
         world_angle_to_target_deg = math.degrees(math.atan2(dx, dy))
-        heading_to_target = world_angle_to_target_deg - self.heading_deg
+        heading_to_target = self.heading_deg - world_angle_to_target_deg
         return ((heading_to_target + 180.0) % 360.0) - 180.0
 
     def set_control_mode(self, mode: str) -> None:
@@ -278,6 +282,7 @@ class Robot:
     def update_command_from_keys(self, keys: object) -> None:
         if pygame is None:
             return
+        # rotation_rate is right-hand positive (CCW / turn-left).
         if self.control_mode == "heading_drive":
             drive_speed = 0.0
             rotation_rate = 0.0
@@ -286,9 +291,9 @@ class Robot:
             if keys[pygame.K_DOWN]:
                 drive_speed -= self.KEYBOARD_DRIVE_SPEED_MPS
             if keys[pygame.K_LEFT]:
-                rotation_rate -= self.KEYBOARD_ROTATE_RATE_DPS
-            if keys[pygame.K_RIGHT]:
                 rotation_rate += self.KEYBOARD_ROTATE_RATE_DPS
+            if keys[pygame.K_RIGHT]:
+                rotation_rate -= self.KEYBOARD_ROTATE_RATE_DPS
             self.drive_command = {"rotation_rate": rotation_rate, "drive_speed": drive_speed}
         elif self.control_mode == "heading_strafe":
             rotation_rate = 0.0
@@ -299,9 +304,9 @@ class Robot:
             if keys[pygame.K_DOWN]:
                 vx -= self.KEYBOARD_DRIVE_SPEED_MPS
             if keys[pygame.K_LEFT]:
-                rotation_rate -= self.KEYBOARD_ROTATE_RATE_DPS
-            if keys[pygame.K_RIGHT]:
                 rotation_rate += self.KEYBOARD_ROTATE_RATE_DPS
+            if keys[pygame.K_RIGHT]:
+                rotation_rate -= self.KEYBOARD_ROTATE_RATE_DPS
             if keys[pygame.K_a]:
                 vy += self.KEYBOARD_DRIVE_SPEED_MPS
             if keys[pygame.K_d]:
@@ -325,6 +330,8 @@ class Robot:
             return
         axis_count = joystick.get_numaxes()
 
+        # rotation_rate is right-hand positive (CCW / turn-left); stick-right
+        # (positive z-axis) therefore produces a negative rotation_rate.
         if self.control_mode == "heading_drive":
             drive_speed = 0.0
             rotation_rate = 0.0
@@ -333,7 +340,7 @@ class Robot:
                 drive_speed = -y_axis * self.GAMEPAD_MAX_DRIVE_SPEED_MPS
             if axis_count > 2:
                 z_axis = self._shape_gamepad_axis(self._apply_deadband(joystick.get_axis(2)))
-                rotation_rate = z_axis * self.GAMEPAD_MAX_ROTATE_RATE_DPS
+                rotation_rate = -z_axis * self.GAMEPAD_MAX_ROTATE_RATE_DPS
             self.drive_command = {"rotation_rate": rotation_rate, "drive_speed": drive_speed}
         elif self.control_mode == "heading_strafe":
             rotation_rate = 0.0
@@ -347,7 +354,7 @@ class Robot:
                 vx = -y_axis * self.GAMEPAD_MAX_DRIVE_SPEED_MPS
             if axis_count > 2:
                 z_axis = self._shape_gamepad_axis(self._apply_deadband(joystick.get_axis(2)))
-                rotation_rate = z_axis * self.GAMEPAD_MAX_ROTATE_RATE_DPS
+                rotation_rate = -z_axis * self.GAMEPAD_MAX_ROTATE_RATE_DPS
             self.drive_command = {"rotation_rate": rotation_rate, "vx": vx, "vy": vy}
         else:
             vx = 0.0
@@ -384,16 +391,19 @@ class Robot:
     def integrate(self, dt: float) -> None:
         local_x, local_y = self._basis_vectors()
 
+        # Note: the internal heading_deg is measured CW-from-north (a left-hand
+        # convention), so a right-hand positive rotation_rate (CCW, turn-left)
+        # is applied as a *decrease* in heading_deg.
         if self.control_mode == "heading_drive":
             rot_dps = self.drive_command.get("rotation_rate", 0.0)
             drive_speed = self.drive_command.get("drive_speed", 0.0)
-            self.heading_deg = ((self.heading_deg + rot_dps * dt + 180.0) % 360.0) - 180.0
+            self.heading_deg = ((self.heading_deg - rot_dps * dt + 180.0) % 360.0) - 180.0
             displacement = local_x * drive_speed * dt
         elif self.control_mode == "heading_strafe":
             rot_dps = self.drive_command.get("rotation_rate", 0.0)
             vx = self.drive_command.get("vx", 0.0)
             vy = self.drive_command.get("vy", 0.0)
-            self.heading_deg = ((self.heading_deg + rot_dps * dt + 180.0) % 360.0) - 180.0
+            self.heading_deg = ((self.heading_deg - rot_dps * dt + 180.0) % 360.0) - 180.0
             local_x, local_y = self._basis_vectors()
             displacement = (local_x * vx + local_y * vy) * dt
         else:

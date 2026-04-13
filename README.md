@@ -1,18 +1,44 @@
 # RoboSim Navigation Trainer
 
-RoboSim Navigation Trainer supports an imitation-learning workflow for robot navigation with three core utilities:
+RoboSim Navigation Trainer is an imitation-learning framework for obstacle-aware
+robot navigation. It pairs an interactive 2D simulator with a NumPy MLP trainer
+and a headless benchmark evaluator, so you can collect demonstrations, train a
+policy, benchmark it, and close the loop with DAgger-style corrective data.
 
-- simulator.py for interactive control, data collection, and model-in-the-loop testing
-- train_mlp.py for training JSON policy models from simulator logs
-- benchmark_gui.py for repeatable headless model evaluation on shared maps
+Looking for a guided walkthrough? See [QUICKSTART.md](QUICKSTART.md).
 
-Install dependencies:
+## Installation
 
 ```bash
 pip install -r requirements.txt
 ```
 
-Launch tools directly:
+The trainer and evaluator are pure NumPy. The simulator uses `pygame` for
+rendering; the trainer and benchmark GUIs use `tkinter` (bundled with most
+Python builds). A gamepad is optional but recommended for demonstrations.
+
+## Launcher
+
+Start here. The launcher is a small Tkinter window that opens any of the three
+main utilities in its own Python process, so they can run side-by-side.
+
+```bash
+python utility_launcher.py
+```
+
+Buttons:
+
+- **Open Simulator** — starts [simulator.py](simulator.py) for interactive
+  driving, demonstration logging, and model-in-the-loop testing.
+- **Open MLP Trainer** — starts [train_mlp.py](train_mlp.py) for training a
+  policy from one or more JSONL logs.
+- **Open Benchmark Utility** — starts [benchmark_gui.py](benchmark_gui.py) for
+  generating fixed map sets and running batch model evaluations.
+
+Each button spawns an independent process rooted at the project directory, so
+you can keep the launcher open while any combination of tools runs.
+
+If you prefer the command line, each utility can be invoked directly:
 
 ```bash
 python simulator.py
@@ -20,125 +46,186 @@ python train_mlp.py
 python benchmark_gui.py
 ```
 
-Or use the utility launcher:
+---
 
-```bash
-python utility_launcher.py
-```
+## Simulator — [simulator.py](simulator.py)
 
-## Simulator
+The simulator is the primary interactive workspace. You can drive manually via
+keyboard or gamepad, log demonstrations, load trained models, and build
+targeted DAgger queues for corrective data collection.
 
-The simulator is the primary interactive workspace. You can drive manually, log demonstrations, load trained models, and build targeted DAgger queues for corrective data collection.
+### Top-bar controls
 
-### Core options
+- **Run** — starts a fresh randomized episode, or replays the next queued
+  DAgger case when the queue is non-empty.
+- **FAIL** — while a model is driving, snapshots the current scenario and
+  appends it to the DAgger queue for later human takeover.
+- **Obstacles −/+** — changes the number of obstacles generated per episode.
+- **Enable Logging** — toggles whether demonstration samples are written to
+  disk during manual driving.
+- **Control Mode** — switches between Heading+Drive, XY Strafe, and
+  Heading+Strafe.
+- **Vis Mode** — cycles through rendering styles (see below).
+- **Pick / Reload** — selects or reloads the JSON model used in model-driven
+  episodes for the active control mode.
+- **Robot View** — toggles a robot-aligned camera framing for comfortable
+  manual driving.
 
-- Run: starts a new randomized episode, or loads the next queued train-me case when available
-- FAIL: while in model-driving mode, snapshots the current case for later human takeover and replay
-- Obstacles (-/+): controls environment density per episode
-- Enable Logging: toggles whether demonstration samples are written to disk
-- History (-/+): sets temporal window length recorded in each sample
-- Rate Hz (-/+): sets active logging frequency
-- Pick / Reload: selects or reloads the model for the current control mode
-- Robot View: toggles robot-aligned framing for manual driving comfort
+### Preferences panel
+
+Opens a sub-panel with the settings that affect logged-sample shape:
+
+- **History (N)** — number of timesteps in each sample's history window.
+  Determines `memory_steps` and therefore model input dimensionality.
+- **Rate Hz** — effective logging frequency in Hz.
+
+Both values are recorded in every log sample so the trainer can verify
+consistency across input files.
 
 ### Control modes
 
-- Heading+Drive: predicts translational speed and rotation rate
-- XY Strafe: predicts planar x/y velocity
-- Hdg+Strafe: predicts rotation plus planar x/y velocity
+Choose before driving; a model trained in one mode cannot be used in another.
 
-Train and evaluate models in the same mode they were trained for.
+- **Heading + Drive** — outputs `[drive_speed, rotation_rate]`
+  (forward speed in m/s + yaw rate in deg/s).
+- **XY Strafe** — outputs `[vx, vy]`
+  (planar body-frame velocity in m/s).
+- **Heading + Strafe** — outputs `[rotation_rate, vx, vy]`
+  (yaw rate + planar body-frame velocity).
 
-### Rendering modes and why they exist
+Sign convention is right-hand, z-up: positive rotation rate turns left,
+positive `vy` moves left, positive `heading_to_target` means the target is
+on the robot's left. See [SPEC.md](SPEC.md) and
+[MODEL_SPEC.md](MODEL_SPEC.md) for the full data-flow specification.
 
-The simulator includes multiple obstacle rendering modes to support different operator tasks:
+### Visualization modes
 
-- All: maximizes full-scene awareness for debugging map generation and geometry edge cases
-- Action Radius: emphasizes the local decision zone around the robot and reduces visual clutter
-- Detected: displays obstacles as they are sensed, useful for understanding whisker-triggered perception timing
-- Sparse Sensing: shows sensed points over short temporal memory, helpful for diagnosing history-window effects and perception-to-action coupling
+Rendering only; underlying physics and sensors are identical in every mode.
 
-These modes change visualization only, not underlying physics.
+- **All** — full-scene view for debugging map generation and geometry.
+- **Action Radius** — emphasizes the robot's local decision zone and reduces
+  clutter on dense maps.
+- **Detected** — shows obstacles as the whiskers sense them, useful for
+  inspecting perception timing.
+- **Sparse Sensing** — hides walls and undetected obstacles; only whisker
+  intersection points are visible. Best for judging what the policy actually
+  "sees" through the memory window.
 
-### Model-driven episodes and DAgger workflow
+### Model-driven episodes and the DAgger loop
 
-You can load a trained JSON model and let it drive inside the interactive simulator. This is useful for:
+Load a JSON model with **Pick** and select a model-driven run from the
+control menu. The model then issues commands each step while the simulator
+renders the result. This is where DAgger happens:
 
-- quick qualitative checks of behavior
-- spotting failure patterns in context
-- queuing difficult scenes into the train-me flow for human corrective demonstrations
+1. Watch the model drive.
+2. When it makes a mistake, hit **FAIL** (or let it crash) — the scenario is
+   frozen and queued in `dagger_snapshots/`.
+3. After collecting some queued cases, press **Run** with Enable Logging on.
+   The simulator will replay each queued case and hand control to you so you
+   can demonstrate the correct recovery.
+4. Retrain, adding the new logs to your dataset.
 
-That loop is an interactive DAgger-style process: observe a model failure, queue the case, then collect human takeover data on that exact scenario.
+This is complementary to batch benchmarking:
 
-This differs from benchmarking in benchmark_gui.py:
-
-- simulator.py is interactive and diagnostic, optimized for discovery and corrective data collection
-- benchmark_gui.py is statistical and batch-oriented, optimized for apples-to-apples model comparison
+- Simulator is interactive and diagnostic — good for discovering failures and
+  collecting corrective data.
+- Benchmark is statistical and batch-oriented — good for apples-to-apples
+  model comparison.
 
 ### Output directories
 
-- logs/ stores demonstration logs
-- dagger_snapshots/ stores queued train-me scenarios
-- trained_models/ stores trained model and metrics artifacts
+- `logs/` — demonstration logs (JSONL, schema v2).
+- `dagger_snapshots/` — queued failure scenarios for takeover runs.
+- `trained_models/` — consumed by the simulator when loading models.
+- `benchmark_maps/` and `benchmark_reports/` — produced by the evaluator.
 
-## Model Training
+---
 
-Use train_mlp.py to train models from simulator logs.
+## MLP Trainer — [train_mlp.py](train_mlp.py)
+
+Trains a small NumPy MLP from one or more simulator JSONL logs. No PyTorch
+required. The trained model is a self-contained JSON file that encodes
+weights, biases, per-feature normalization, and metadata.
 
 ### Typical flow
 
-1. Select one or more JSONL logs from logs/
-2. Configure architecture and optimization settings
-3. Start training and monitor training/validation behavior
-4. Save model JSON and metrics JSON into trained_models/
+1. Launch the trainer.
+2. Add one or more JSONL logs from `logs/`. The trainer validates that all
+   inputs share the same control mode, history length, and sample rate.
+3. Configure architecture, optimizer, and training schedule.
+4. Set **Model Name** and confirm the **Full Path** preview.
+5. Click **Train**. A live loss curve updates each epoch.
+6. The trainer writes `<name>_<mode>.json` (model) and `<name>_<mode>_metrics.json`
+   (training metrics) into the Save Dir.
 
-### Hyperparameter tips
+### Key configuration
 
-- Hidden width and depth:
-	- start modest (for example 2 to 3 layers with moderate width) to reduce overfitting on small datasets
-	- increase capacity only if both train and validation curves underfit
-- Learning rate:
-	- if loss is noisy or diverges, reduce learning rate first
-	- if convergence is extremely slow and stable, increase cautiously
-- Batch size:
-	- larger batches improve gradient stability but can smooth away useful variation
-	- smaller batches can generalize better but may require lower learning rates
-- Epochs:
-	- track validation trend and stop when improvement plateaus
-	- avoid training far past the best validation checkpoint
-- History window alignment:
-	- ensure the history length used in logging aligns with what you expect the model to consume
-	- changing memory length changes input structure and affects behavior significantly
-- Data balance:
-	- include successful trajectories and failure-recovery demonstrations
-	- overrepresenting easy maps can produce brittle models
+- **Control mode** — must match the logs. Training halts if they mismatch.
+- **Hidden layers / Hidden width** — network size. Start small.
+- **Activation** — `relu`, `tanh`, or `leaky_relu` (alpha 0.01). The chosen
+  activation is stored in the model JSON and applied by every downstream
+  consumer (simulator, benchmark GUI, real-robot runtime).
+- **Learning rate, Batch size, Epochs** — standard optimizer knobs.
+- **Validation split** — fraction held out for the plotted validation curve.
+- **Model Name** — filename stem (sanitized). The trainer appends the mode
+  suffix (`_heading`, `_strafe`, `_heading_strafe`) automatically.
+- **Save Dir** — output folder; the preview label shows the exact resolved
+  path that will be written.
 
-## Model Evaluation
+### Outputs
 
-Evaluation can be done two ways: interactive in simulator.py and batch/statistical in benchmark_gui.py.
+- `<name>_<mode>.json` — the model blob. Top-level fields include `mode`,
+  `input_dim`, `output_dim`, `memory_steps`, `activation`, `weights`,
+  `biases`, and per-channel normalization stats. Full schema in
+  [MODEL_SPEC.md](MODEL_SPEC.md).
+- `<name>_<mode>_metrics.json` — loss history, validation metrics, and
+  training configuration.
 
-### Interactive evaluation in simulator.py
+### Notes
 
-Load a model and watch it drive in live randomized scenes. This is best for:
+- Normalization stats (`x_mean`, `x_std`, `y_mean`, `y_std`) are computed from
+  the training split only and baked into the model JSON. Downstream
+  consumers never need to recompute them.
+- Outputs are in **physical units** (m/s, deg/s) after un-normalization, not
+  the `[-1, 1]` range seen during training. Clamp them at the motor boundary
+  (±0.40 m/s, ±40 deg/s).
 
-- understanding behavior and failure modes in context
-- identifying specific corrective demonstrations to collect
-- validating whether control feel is acceptable for deployment intent
+---
 
-### Batch evaluation in benchmark_gui.py
+## Benchmark Evaluator — [benchmark_gui.py](benchmark_gui.py)
 
-benchmark_gui.py is designed for reproducible comparison across models.
+Headless, batch-oriented model evaluation against a fixed map set. Designed
+for apples-to-apples comparison between model versions.
 
-1. Generate a benchmark map set once
-2. Run one model over all maps in headless simulation
-3. Save report metrics
-4. Repeat with another model on the same map set
+### Typical flow
 
-Maps are scenario-only and control-mode agnostic: robot pose, obstacles, and goal placement are fixed regardless of model mode. This supports fair direct comparison because each candidate model is tested against identical environments.
+1. Launch the benchmark GUI.
+2. **Generate Maps** — produces a reproducible set of scenario JSON files
+   under `benchmark_maps/`. Maps are control-mode agnostic: robot pose,
+   obstacles, and goal placement are fixed regardless of which model you
+   evaluate later.
+3. **Load Model** — pick a trained JSON model.
+4. **Run** — the simulator steps each map headlessly under the model's
+   control. Live metrics update as runs complete.
+5. **Save Report** — writes a summary into `benchmark_reports/` with success
+   rate, time-to-goal, collision counts, and per-map outcomes.
 
 ### Why headless benchmark evaluation matters
 
-- repeatability: identical seeds and maps across runs
-- comparability: success rate, time, and collision metrics are measured on the same workload
-- throughput: many episodes can be evaluated quickly without manual intervention
-- decision support: helps choose between model versions before interactive rollout
+- **Repeatability** — identical seeds and maps across runs.
+- **Comparability** — every model is scored against the same workload.
+- **Throughput** — hundreds of episodes evaluate in seconds.
+- **Decision support** — pick the winner before an interactive rollout.
+
+Use interactive evaluation in the simulator for qualitative judgment and
+DAgger data collection; use the benchmark GUI for quantitative model
+selection.
+
+---
+
+## Further reading
+
+- [SPEC.md](SPEC.md) — authoritative data-flow specification (coordinates,
+  sensors, log schema, trainer pipeline, invariants).
+- [MODEL_SPEC.md](MODEL_SPEC.md) — standalone implementation spec for porting
+  the inference path to another runtime (e.g., a real robot).

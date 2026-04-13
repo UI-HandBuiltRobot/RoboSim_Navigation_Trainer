@@ -205,6 +205,41 @@ def _action_keys_for_mode(mode: str) -> List[str]:
     return ["vx", "vy"]
 
 
+def _model_mode_name(mode: str) -> str:
+    mode_map = {
+        MODE_HEADING: "heading",
+        MODE_STRAFE: "strafe",
+        MODE_HEADING_STRAFE: "heading_strafe",
+    }
+    return mode_map.get(mode, str(mode))
+
+
+def _infer_memory_steps(input_dim: int, mode: str) -> int:
+    action_dim = len(_action_keys_for_mode(mode))
+    denom = STATE_INPUT_DIM + action_dim
+    numer = input_dim + action_dim
+    if denom <= 0 or numer <= 0 or numer % denom != 0:
+        raise ValueError(
+            f"cannot infer memory_steps for mode={mode}: input_dim={input_dim}, action_dim={action_dim}"
+        )
+    return numer // denom
+
+
+def _build_input_layout(mode: str, memory_steps: int) -> List[str]:
+    layout: List[str] = []
+    action_keys = _action_keys_for_mode(mode)
+    oldest_offset = -(memory_steps - 1)
+    for i in range(memory_steps):
+        offset = oldest_offset + i
+        prefix = f"t{offset:+d}"
+        layout.append(f"{prefix}.whiskers")
+        layout.append(f"{prefix}.heading_to_target")
+        if i < memory_steps - 1:
+            for action_key in action_keys:
+                layout.append(f"{prefix}.action.{action_key}")
+    return layout
+
+
 def _zero_history_step(mode: str) -> Dict[str, object]:
     return {
         "whisker_lengths": [0.0] * 11,
@@ -390,6 +425,7 @@ class TrainerApp:
 
         self.selected_files: List[str] = []
         self.output_dir = tk.StringVar(value=str(Path.cwd() / "trained_models"))
+        self.model_name = tk.StringVar(value="")
         self.hidden_width = tk.StringVar(value="64")
         self.hidden_layers = tk.StringVar(value="2")
         self.epochs = tk.StringVar(value="120")
@@ -398,6 +434,9 @@ class TrainerApp:
         self.activation = tk.StringVar(value="relu")
 
         self._build_ui()
+        self._refresh_path_preview()
+        self.model_name.trace_add("write", lambda *_: self._refresh_path_preview())
+        self.output_dir.trace_add("write", lambda *_: self._refresh_path_preview())
         self.root.after(150, self.select_files)
 
     def _build_ui(self) -> None:
@@ -452,6 +491,17 @@ class TrainerApp:
         browse_btn = ttk.Button(out_frame, text="Browse", command=self.choose_output_dir)
         browse_btn.grid(row=0, column=2, sticky="w", **pad)
 
+        ttk.Label(out_frame, text="Model Name:").grid(row=1, column=0, sticky="e", **pad)
+        model_name_entry = ttk.Entry(out_frame, textvariable=self.model_name, width=58)
+        model_name_entry.grid(row=1, column=1, sticky="w", **pad)
+
+        ttk.Label(out_frame, text="Full Path:").grid(row=2, column=0, sticky="ne", **pad)
+        self.path_preview_var = tk.StringVar(value="")
+        path_preview_label = ttk.Label(
+            out_frame, textvariable=self.path_preview_var, wraplength=520, justify="left", foreground="#555"
+        )
+        path_preview_label.grid(row=2, column=1, columnspan=2, sticky="w", **pad)
+
         action_frame = ttk.Frame(self.root)
         action_frame.pack(fill="x", **pad)
         self.train_button = ttk.Button(action_frame, text="Train Models", command=self.start_training)
@@ -475,6 +525,15 @@ class TrainerApp:
                 ToolTip(learning_rate_entry, "Step size for model updates during training."),
                 ToolTip(output_dir_entry, "Folder where trained model and metrics files are saved."),
                 ToolTip(browse_btn, "Pick the output folder for model artifacts."),
+                ToolTip(
+                    model_name_entry,
+                    "Optional custom stem for the saved files. Leave empty to auto-number as model_<mode>_NNN.json. "
+                    "When multiple modes train in one run, the mode suffix is appended automatically.",
+                ),
+                ToolTip(
+                    path_preview_label,
+                    "Resolved save path(s) for the current model name and save directory.",
+                ),
                 ToolTip(self.train_button, "Start training models for all modes found in selected logs."),
                 ToolTip(self.status_text, "Live training progress, parsed data stats, and saved file paths."),
             ]
@@ -505,6 +564,36 @@ class TrainerApp:
         path = filedialog.askdirectory(title="Select output directory")
         if path:
             self.output_dir.set(path)
+
+    def _sanitize_model_stem(self, raw: str) -> str:
+        stem = raw.strip()
+        if stem.lower().endswith(".json"):
+            stem = stem[:-5]
+        bad = '<>:"/\\|?*'
+        return "".join("_" if c in bad else c for c in stem)
+
+    def _resolve_model_paths(self, mode_suffix: str) -> Tuple[Path, Path]:
+        output_dir = Path(self.output_dir.get())
+        stem = self._sanitize_model_stem(self.model_name.get())
+        if stem:
+            base = f"{stem}_{mode_suffix}"
+            return output_dir / f"model_{base}.json", output_dir / f"metrics_{base}.json"
+        idx = next_index(output_dir, mode_suffix) if output_dir.exists() else 1
+        return (
+            output_dir / f"model_{mode_suffix}_{idx:03d}.json",
+            output_dir / f"metrics_{mode_suffix}_{idx:03d}.json",
+        )
+
+    def _refresh_path_preview(self) -> None:
+        try:
+            suffixes = ["heading", "strafe", "heading_strafe"]
+            lines: List[str] = []
+            for s in suffixes:
+                model_p, _ = self._resolve_model_paths(s)
+                lines.append(f"{s}: {model_p}")
+            self.path_preview_var.set("\n".join(lines))
+        except Exception as e:
+            self.path_preview_var.set(f"(path preview unavailable: {e})")
 
     def _read_int(self, value: str, name: str, min_val: int = 1) -> int:
         try:
@@ -545,7 +634,6 @@ class TrainerApp:
 
     def _save_artifacts(
         self,
-        output_dir: Path,
         mode: str,
         model: NumpyMLP,
         input_dim: int,
@@ -563,16 +651,22 @@ class TrainerApp:
             MODE_HEADING_STRAFE: "heading_strafe",
         }
         mode_suffix = mode_suffix_map.get(mode, "other")
-        idx = next_index(output_dir, mode_suffix)
+        model_path, metrics_path = self._resolve_model_paths(mode_suffix)
 
-        model_path = output_dir / f"model_{mode_suffix}_{idx:03d}.json"
-        metrics_path = output_dir / f"metrics_{mode_suffix}_{idx:03d}.json"
+        memory_steps = _infer_memory_steps(input_dim=input_dim, mode=mode)
+        output_layout = _action_keys_for_mode(mode)
 
         model_blob = {
             "saved_at": datetime.now().isoformat(timespec="seconds"),
             "mode": mode,
+            "model_mode": _model_mode_name(mode),
             "input_dim": int(input_dim),
             "output_dim": int(model.biases[-1].shape[1]),
+            "memory_steps": int(memory_steps),
+            "whisker_dim": 11,
+            "input_layout": _build_input_layout(mode=mode, memory_steps=memory_steps),
+            "output_layout": output_layout,
+            "history_includes_drive": bool(memory_steps > 1 and "drive_speed" in output_layout),
             "hidden_layers": int(cfg["hidden_layers"]),
             "hidden_width": int(cfg["hidden_width"]),
             "activation": str(cfg["activation"]),
@@ -608,7 +702,6 @@ class TrainerApp:
         mode: str,
         dataset: Dataset,
         cfg: Dict[str, object],
-        output_dir: Path,
     ) -> None:
         train_set, val_set = split_train_val(dataset)
 
@@ -644,7 +737,6 @@ class TrainerApp:
         )
 
         model_path, metrics_path = self._save_artifacts(
-            output_dir=output_dir,
             mode=mode,
             model=model,
             input_dim=input_dim,
@@ -700,17 +792,17 @@ class TrainerApp:
                 raise ValueError("No valid samples found in selected files")
 
             if MODE_HEADING in datasets:
-                self._train_one_mode(MODE_HEADING, datasets[MODE_HEADING], cfg, output_dir)
+                self._train_one_mode(MODE_HEADING, datasets[MODE_HEADING], cfg)
             else:
                 self.log("Skipping heading_drive: no samples")
 
             if MODE_STRAFE in datasets:
-                self._train_one_mode(MODE_STRAFE, datasets[MODE_STRAFE], cfg, output_dir)
+                self._train_one_mode(MODE_STRAFE, datasets[MODE_STRAFE], cfg)
             else:
                 self.log("Skipping xy_strafe: no samples")
 
             if MODE_HEADING_STRAFE in datasets:
-                self._train_one_mode(MODE_HEADING_STRAFE, datasets[MODE_HEADING_STRAFE], cfg, output_dir)
+                self._train_one_mode(MODE_HEADING_STRAFE, datasets[MODE_HEADING_STRAFE], cfg)
             else:
                 self.log("Skipping heading_strafe: no samples")
 

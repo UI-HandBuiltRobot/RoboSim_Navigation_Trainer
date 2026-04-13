@@ -97,6 +97,7 @@ class SimulatorApp:
         self.obstacle_count = random.randint(3, 10)
         self.logging_enabled = False
         self.active_log_rate_hz = 10.0
+        self.sparse_tick_timer = 0.0
         self.in_memory_log: List[Dict] = []
         self.log_timer = 0.0
         self.history_len = 1
@@ -125,7 +126,7 @@ class SimulatorApp:
         self.train_me_enqueue_seq = 1
         self.last_train_me_loaded_seq: Optional[int] = None
         self.active_train_me_case_seq: Optional[int] = None
-        self.human_takeover_prompt_timer = 0.0
+        self.dagger_session_active = False
 
         self.prefs_open = False
         self.vis_mode = "action_radius"  # "all" | "action_radius" | "detected" | "sparse_sensing"
@@ -556,6 +557,21 @@ class SimulatorApp:
             return 10.0 / max(0.1, self.active_log_rate_hz)
         return None
 
+    def _current_sparse_interval(self) -> Optional[float]:
+        """Tick interval for sparse-sensing ghost points.
+
+        Mirrors the logging cadence context (fast near obstacles, slow in open
+        space) but is gated on the operator having active control input rather
+        than on logging_enabled — so traces decay only while the user is
+        driving, regardless of whether samples are being written to disk.
+        """
+        if not self._has_nonzero_input():
+            return None
+        obstacle_near = self._obstacle_within_action_radius()
+        if obstacle_near:
+            return 1.0 / max(0.1, self.active_log_rate_hz)
+        return 10.0 / max(0.1, self.active_log_rate_hz)
+
     def _collect_log_entry(self) -> Dict:
         """Collect a structured log row containing a fixed-length history window."""
         mode = self.robot.control_mode
@@ -678,6 +694,7 @@ class SimulatorApp:
                 "y_mean": np.asarray(blob["y_mean"], dtype=np.float64),
                 "y_std": np.asarray(blob["y_std"], dtype=np.float64),
                 "input_dim": int(blob.get("input_dim", weights[0].shape[0])),
+                "activation": str(blob.get("activation", "relu")),
             }
 
             self.model_inference_buffer.clear()
@@ -899,6 +916,57 @@ class SimulatorApp:
         except Exception:
             return default_on_error
 
+    def _safe_showinfo(self, title: str, message: str) -> None:
+        """Open a modal info dialog safely; Linux uses subprocess isolation."""
+        if messagebox is None or tk is None:
+            return
+
+        if sys.platform.startswith("linux"):
+            payload = {"title": title, "message": message}
+            script = (
+                "import json,sys\n"
+                "import tkinter as tk\n"
+                "from tkinter import messagebox\n"
+                "cfg=json.loads(sys.argv[1])\n"
+                "root=tk.Tk()\n"
+                "root.withdraw()\n"
+                "root.update_idletasks()\n"
+                "messagebox.showinfo(cfg['title'], cfg['message'], parent=root)\n"
+                "root.destroy()\n"
+            )
+            try:
+                self._run_dialog_subprocess(script=script, payload=payload, timeout_s=180.0)
+            except Exception:
+                pass
+            return
+
+        try:
+            root = tk.Tk()
+            root.withdraw()
+            root.attributes("-topmost", True)
+            root.update_idletasks()
+            messagebox.showinfo(title, message, parent=root)
+            root.destroy()
+        except Exception:
+            pass
+
+    def _finish_dagger_session_if_empty(self) -> None:
+        """If a DAgger replay session just emptied the queue, disable logging and notify."""
+        if not self.dagger_session_active:
+            return
+        if self.train_me_queue:
+            return
+        self.dagger_session_active = False
+        self.logging_enabled = False
+        self._safe_showinfo(
+            title="Train-Me Queue Complete",
+            message=(
+                "You have finished the training queue.\n"
+                "Logging has been disabled.\n"
+                "Re-enable logging to continue collecting data."
+            ),
+        )
+
     def _run_dialog_subprocess(self, script: str, payload: dict, timeout_s: float) -> Optional[str]:
         """Run Tk dialog subprocess while keeping pygame event loop alive.
 
@@ -948,7 +1016,6 @@ class SimulatorApp:
         except Exception:
             pass
 
-        self.human_takeover_prompt_timer = 4.0
         self.active_train_me_case_seq = seq
         self.last_train_me_loaded_seq = seq
         self.model_status = f"Loaded case #{seq} ({len(self.train_me_queue)} remaining)"
@@ -968,10 +1035,17 @@ class SimulatorApp:
         y_std = np.where(np.abs(self.loaded_model["y_std"]) < 1e-6, 1.0, self.loaded_model["y_std"])
         weights = self.loaded_model["weights"]
         biases = self.loaded_model["biases"]
+        activation = str(self.loaded_model.get("activation", "relu")).lower()
 
         a = (features - x_mean) / x_std
         for i in range(len(weights) - 1):
-            a = np.maximum(0.0, a @ weights[i] + biases[i])
+            z = a @ weights[i] + biases[i]
+            if activation == "tanh":
+                a = np.tanh(z)
+            elif activation == "leaky_relu":
+                a = np.where(z > 0.0, z, 0.01 * z)
+            else:
+                a = np.maximum(0.0, z)
         out_norm = a @ weights[-1] + biases[-1]
         return out_norm * y_std + y_mean
 
@@ -1076,6 +1150,19 @@ class SimulatorApp:
         if self.run_button_rect.collidepoint(pos):
             self.sparse_detection_points.clear()
             if self.train_me_queue and self._prompt_run_train_me():
+                self.dagger_session_active = True
+                self.logging_enabled = True
+                self._safe_showinfo(
+                    title="DAgger Replay Starting",
+                    message=(
+                        "The maps the model failed will now be played back for you "
+                        "to navigate (Data Aggregation = DAgger).\n\n"
+                        "Logging is automatically enabled while you play through "
+                        "the queue.\n\n"
+                        "Any maps you fail to navigate successfully will be dropped "
+                        "from the training set."
+                    ),
+                )
                 self._run_next_train_me_case()
             else:
                 self.new_episode()
@@ -1111,14 +1198,17 @@ class SimulatorApp:
 
         if self.radio_keyboard_rect.collidepoint(pos):
             self.input_mode = "keyboard"
+            self.vis_mode = "sparse_sensing"
             return
 
         if self.radio_gamepad_rect.collidepoint(pos):
             self.input_mode = "gamepad"
+            self.vis_mode = "sparse_sensing"
             return
 
         if self.radio_model_rect.collidepoint(pos):
             self.input_mode = "model"
+            self.vis_mode = "all"
             self._reload_model_for_current_mode()
             return
 
@@ -1189,9 +1279,10 @@ class SimulatorApp:
             ]
             if self.vis_mode != "sparse_sensing":
                 pygame.draw.polygon(self.screen, self.ROOM_BG, room_corners)
-            pygame.draw.polygon(self.screen, self.ROOM_BORDER, room_corners, 2)
+                pygame.draw.polygon(self.screen, self.ROOM_BORDER, room_corners, 2)
         else:
-            pygame.draw.rect(self.screen, self.ROOM_BORDER, self.room_rect_px, 2)
+            if self.vis_mode != "sparse_sensing":
+                pygame.draw.rect(self.screen, self.ROOM_BORDER, self.room_rect_px, 2)
 
         if self.vis_mode != "sparse_sensing":
             for i, obstacle in enumerate(self.obstacles):
@@ -1260,14 +1351,6 @@ class SimulatorApp:
             collision_text = pygame.font.SysFont("consolas", 60).render("COLLISION", True, (255, 0, 0))
             text_rect = collision_text.get_rect(center=overlay_rect.center)
             self.screen.blit(collision_text, text_rect)
-
-        if self.human_takeover_prompt_timer > 0.0:
-            prompt_bg = self.sim_rect.inflate(-70, -200)
-            pygame.draw.rect(self.screen, (0, 0, 0), prompt_bg)
-            prompt_font = pygame.font.SysFont("consolas", 30)
-            prompt_text = prompt_font.render("DAGGER: HUMAN TAKEOVER - NAVIGATE THIS MAP", True, (255, 220, 80))
-            prompt_rect = prompt_text.get_rect(center=prompt_bg.center)
-            self.screen.blit(prompt_text, prompt_rect)
 
         self.screen.set_clip(None)
 
@@ -1489,15 +1572,27 @@ class SimulatorApp:
             self.update_robot_command()
             self.whisker_segments = self.robot.step(dt, self.obstacles)
             self.robot.update_heading_to_target(self.target)
-            self._update_sparse_detection_points()
             self._update_obstacle_detection(dt)
-            
+
             # Logging: dynamic cadence by context
             self.log_timer += dt
             log_interval = self._current_log_interval()
             if log_interval is not None and self.log_timer >= log_interval:
                 self.in_memory_log.append(self._collect_log_entry())
                 self.log_timer = 0.0
+
+            # Sparse-sensing ghost points tick at the logging cadence but only
+            # while the operator has active control input, mirroring the
+            # conditions under which the model would be consuming samples.
+            # Independent of whether logs are being written to disk.
+            sparse_interval = self._current_sparse_interval()
+            if sparse_interval is None:
+                self.sparse_tick_timer = 0.0
+            else:
+                self.sparse_tick_timer += dt
+                if self.sparse_tick_timer >= sparse_interval:
+                    self.sparse_tick_timer = 0.0
+                    self._update_sparse_detection_points()
             
             if self.check_goal_reached():
                 # Goal reached: write log if present
@@ -1507,6 +1602,7 @@ class SimulatorApp:
                 if self.active_train_me_case_seq is not None and self.train_me_queue:
                     self._run_next_train_me_case()
                 else:
+                    self._finish_dagger_session_if_empty()
                     self.new_episode()
             elif self.robot.collision_flag or self.check_whisker_collision():
                 print("COLLISION")
@@ -1519,12 +1615,11 @@ class SimulatorApp:
                 if self.active_train_me_case_seq is not None and self.train_me_queue:
                     self._run_next_train_me_case()
                 else:
+                    self._finish_dagger_session_if_empty()
                     self.new_episode()
             
             if self.collision_display_timer > 0.0:
                 self.collision_display_timer = max(0.0, self.collision_display_timer - dt)
-            if self.human_takeover_prompt_timer > 0.0:
-                self.human_takeover_prompt_timer = max(0.0, self.human_takeover_prompt_timer - dt)
 
             self.screen.fill(self.BG_COLOR)
             self._draw_top_bar()

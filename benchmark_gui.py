@@ -68,6 +68,7 @@ def _load_il_blob(model_path: Path) -> Dict[str, Any]:
         "input_dim": int(blob.get("input_dim", weights[0].shape[0])),
         "output_dim": int(blob.get("output_dim", weights[-1].shape[1])),
         "mode": str(blob.get("mode", "heading_drive")),
+        "activation": str(blob.get("activation", "relu")),
     }
 
 
@@ -90,10 +91,17 @@ def _predict_il_physical(il_blob: Dict[str, Any], obs_row: np.ndarray) -> np.nda
     y_std = np.where(np.abs(il_blob["y_std"]) < 1e-6, 1.0, il_blob["y_std"])
     weights = il_blob["weights"]
     biases = il_blob["biases"]
+    activation = str(il_blob.get("activation", "relu")).lower()
 
     a = (obs_row - x_mean) / x_std
     for i in range(len(weights) - 1):
-        a = np.maximum(0.0, a @ weights[i] + biases[i])
+        z = a @ weights[i] + biases[i]
+        if activation == "tanh":
+            a = np.tanh(z)
+        elif activation == "leaky_relu":
+            a = np.where(z > 0.0, z, 0.01 * z)
+        else:
+            a = np.maximum(0.0, z)
     out_norm = a @ weights[-1] + biases[-1]
     return (out_norm * y_std + y_mean).reshape(-1)
 
