@@ -231,6 +231,21 @@ class Robot:
     def _shape_gamepad_axis(value: float) -> float:
         return value * value * value
 
+    @staticmethod
+    def apply_rotation_stiction(
+        rate_dps: float,
+        min_turn_rate_dps: float,
+        inner_deadband_dps: float,
+    ) -> float:
+        if min_turn_rate_dps <= 0.0:
+            return rate_dps
+        mag = abs(rate_dps)
+        if mag == 0.0 or mag < inner_deadband_dps:
+            return 0.0
+        if mag < min_turn_rate_dps:
+            return math.copysign(min_turn_rate_dps, rate_dps)
+        return rate_dps
+
     def reset_random_pose(self, rng: Optional[np.random.Generator] = None) -> None:
         if rng is None:
             rng = np.random.default_rng()

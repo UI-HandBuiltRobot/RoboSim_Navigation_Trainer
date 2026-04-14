@@ -98,6 +98,8 @@ class SimulatorApp:
         self.logging_enabled = False
         self.active_log_rate_hz = 10.0
         self.sparse_tick_timer = 0.0
+        self.min_turn_rate_dps = 0.0
+        self.inner_deadband_dps = 0.0
         self.in_memory_log: List[Dict] = []
         self.log_timer = 0.0
         self.history_len = 1
@@ -135,7 +137,94 @@ class SimulatorApp:
 
         self._recompute_layout()
 
+        self._prefs_path = Path(__file__).resolve().parent / "simulator_prefs.json"
+        self._load_prefs()
+        self._last_saved_prefs = self._prefs_snapshot()
+
         self.new_episode()
+
+    def _prefs_snapshot(self) -> Dict[str, object]:
+        return {
+            "history_len": int(self.history_len),
+            "active_log_rate_hz": float(self.active_log_rate_hz),
+            "min_turn_rate_dps": float(self.min_turn_rate_dps),
+            "inner_deadband_dps": float(self.inner_deadband_dps),
+            "obstacle_count": int(self.obstacle_count),
+            "vis_mode": str(self.vis_mode),
+            "input_mode": str(self.input_mode),
+            "logging_enabled": bool(self.logging_enabled),
+            "robot_aligned_view": bool(self.robot_aligned_view),
+            "control_mode": str(self.robot.control_mode),
+        }
+
+    def _load_prefs(self) -> None:
+        try:
+            with open(self._prefs_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        except FileNotFoundError:
+            return
+        except Exception:
+            return
+        if not isinstance(data, dict):
+            return
+
+        try:
+            hl = int(data.get("history_len", self.history_len))
+            self.history_len = max(1, min(10, hl))
+            self.history_buffer = deque(
+                list(self.history_buffer)[-self.history_len:],
+                maxlen=self.history_len,
+            )
+        except Exception:
+            pass
+        try:
+            self.active_log_rate_hz = max(
+                1.0, min(30.0, float(data.get("active_log_rate_hz", self.active_log_rate_hz)))
+            )
+        except Exception:
+            pass
+        try:
+            self.min_turn_rate_dps = max(
+                0.0, min(39.0, float(data.get("min_turn_rate_dps", self.min_turn_rate_dps)))
+            )
+        except Exception:
+            pass
+        try:
+            self.inner_deadband_dps = max(
+                0.0,
+                min(self.min_turn_rate_dps, float(data.get("inner_deadband_dps", self.inner_deadband_dps))),
+            )
+        except Exception:
+            pass
+        try:
+            self.obstacle_count = max(1, min(50, int(data.get("obstacle_count", self.obstacle_count))))
+        except Exception:
+            pass
+        vm = str(data.get("vis_mode", self.vis_mode))
+        if vm in ("all", "action_radius", "detected", "sparse_sensing"):
+            self.vis_mode = vm
+        im = str(data.get("input_mode", self.input_mode))
+        if im in ("keyboard", "gamepad", "model"):
+            self.input_mode = im
+        if "logging_enabled" in data:
+            self.logging_enabled = bool(data.get("logging_enabled"))
+        if "robot_aligned_view" in data:
+            self.robot_aligned_view = bool(data.get("robot_aligned_view"))
+        cm = str(data.get("control_mode", self.robot.control_mode))
+        if cm in ("heading_drive", "xy_strafe", "heading_strafe"):
+            self.robot.set_control_mode(cm)
+            self.prev_control_mode = cm
+
+    def _save_prefs_if_changed(self) -> None:
+        current = self._prefs_snapshot()
+        if current == getattr(self, "_last_saved_prefs", None):
+            return
+        try:
+            with open(self._prefs_path, "w", encoding="utf-8") as f:
+                json.dump(current, f, indent=2)
+            self._last_saved_prefs = current
+        except Exception:
+            pass
 
     def _recompute_layout(self) -> None:
         top = self.margin_px
@@ -189,7 +278,7 @@ class SimulatorApp:
         self._recompute_prefs_layout()
 
     def _recompute_prefs_layout(self) -> None:
-        pw, ph = 460, 370
+        pw, ph = 460, 470
         px = (self.window_w - pw) // 2
         py = (self.window_h - ph) // 2
         self.prefs_rect = pygame.Rect(px, py, pw, ph)
@@ -197,14 +286,20 @@ class SimulatorApp:
         self.prefs_close_rect = pygame.Rect(px + pw - 36, py + 8, 28, 28)
         row1 = py + 60    # History
         row2 = py + 110   # Rate Hz
-        row4 = py + 210   # Radio: All
-        row5 = py + 245   # Radio: Action radius
-        row6 = py + 280   # Radio: Detected
-        row7 = py + 315   # Radio: Sparse sensing
+        row3a = py + 160  # Min Turn Rate
+        row3b = py + 210  # Inner Deadband
+        row4 = py + 270   # Radio: All
+        row5 = py + 305   # Radio: Action radius
+        row6 = py + 340   # Radio: Detected
+        row7 = py + 375   # Radio: Sparse sensing
         self.prefs_hist_minus_rect = pygame.Rect(lx + 180, row1, 24, 24)
         self.prefs_hist_plus_rect  = pygame.Rect(lx + 250, row1, 24, 24)
         self.prefs_rate_minus_rect = pygame.Rect(lx + 180, row2, 24, 24)
         self.prefs_rate_plus_rect  = pygame.Rect(lx + 250, row2, 24, 24)
+        self.prefs_min_turn_minus_rect = pygame.Rect(lx + 180, row3a, 24, 24)
+        self.prefs_min_turn_plus_rect  = pygame.Rect(lx + 250, row3a, 24, 24)
+        self.prefs_inner_db_minus_rect = pygame.Rect(lx + 180, row3b, 24, 24)
+        self.prefs_inner_db_plus_rect  = pygame.Rect(lx + 250, row3b, 24, 24)
         self.prefs_vis_all_rect    = pygame.Rect(lx + 10, row4, 18, 18)
         self.prefs_vis_radius_rect = pygame.Rect(lx + 10, row5, 18, 18)
         self.prefs_vis_detect_rect = pygame.Rect(lx + 10, row6, 18, 18)
@@ -230,6 +325,8 @@ class SimulatorApp:
         if self.prefs_open:
             hist_field_rect = self.prefs_hist_minus_rect.union(self.prefs_hist_plus_rect).inflate(120, 10)
             rate_field_rect = self.prefs_rate_minus_rect.union(self.prefs_rate_plus_rect).inflate(120, 10)
+            min_turn_field_rect = self.prefs_min_turn_minus_rect.union(self.prefs_min_turn_plus_rect).inflate(120, 10)
+            inner_db_field_rect = self.prefs_inner_db_minus_rect.union(self.prefs_inner_db_plus_rect).inflate(120, 10)
             prefs_tips: List[Tuple[pygame.Rect, str]] = [
                 (self.prefs_close_rect, "Close preferences panel"),
                 (hist_field_rect, "History: logged context window length; larger values let the trainer learn temporal behavior"),
@@ -238,6 +335,12 @@ class SimulatorApp:
                 (rate_field_rect, "Rate Hz: active logging frequency; higher rates capture denser trajectories"),
                 (self.prefs_rate_minus_rect, "Rate Hz -: decrease active logging frequency"),
                 (self.prefs_rate_plus_rect, "Rate Hz +: increase active logging frequency"),
+                (min_turn_field_rect, "Min Turn Rate: commands between inner deadband and this value snap to +/- this (simulates motor stiction); 0 disables"),
+                (self.prefs_min_turn_minus_rect, "Min Turn Rate -: lower stiction snap target"),
+                (self.prefs_min_turn_plus_rect, "Min Turn Rate +: raise stiction snap target"),
+                (inner_db_field_rect, "Inner Deadband: commands with |rate| below this snap to 0"),
+                (self.prefs_inner_db_minus_rect, "Inner Deadband -: shrink zero-snap zone"),
+                (self.prefs_inner_db_plus_rect, "Inner Deadband +: grow zero-snap zone (capped at Min Turn Rate)"),
                 (self.prefs_vis_all_rect, "Show all objects: render every obstacle regardless of proximity"),
                 (self.prefs_vis_radius_rect, "Show within action radius: render only obstacles within whisker reach"),
                 (self.prefs_vis_detect_rect, "Show when detected: obstacle appears when whisker hits it; fades after history_len / rate_hz seconds"),
@@ -452,6 +555,14 @@ class SimulatorApp:
             if self.loaded_model_mode != self.robot.control_mode:
                 self._load_latest_model_for_mode(self.robot.control_mode)
             self._update_command_from_model()
+
+        # Simulate motor stiction: snap sub-threshold rotation commands before
+        # they are logged and before physics applies them. Defaults (0/0) are
+        # a no-op.
+        rate = float(self.robot.drive_command.get("rotation_rate", 0.0))
+        self.robot.drive_command["rotation_rate"] = self.robot.apply_rotation_stiction(
+            rate, self.min_turn_rate_dps, self.inner_deadband_dps
+        )
     
     def check_goal_reached(self) -> bool:
         """Check if robot has reached the target."""
@@ -587,6 +698,8 @@ class SimulatorApp:
             "mode": mode,
             "history_len": self.history_len,
             "active_log_rate_hz": float(self.active_log_rate_hz),
+            "min_turn_rate_dps": float(self.min_turn_rate_dps),
+            "inner_deadband_dps": float(self.inner_deadband_dps),
             "history": history,
         }
 
@@ -1129,6 +1242,20 @@ class SimulatorApp:
             if self.prefs_rate_plus_rect.collidepoint(pos):
                 self.active_log_rate_hz = min(30.0, self.active_log_rate_hz + 1.0)
                 return
+            if self.prefs_min_turn_minus_rect.collidepoint(pos):
+                self.min_turn_rate_dps = max(0.0, self.min_turn_rate_dps - 1.0)
+                if self.inner_deadband_dps > self.min_turn_rate_dps:
+                    self.inner_deadband_dps = self.min_turn_rate_dps
+                return
+            if self.prefs_min_turn_plus_rect.collidepoint(pos):
+                self.min_turn_rate_dps = min(39.0, self.min_turn_rate_dps + 1.0)
+                return
+            if self.prefs_inner_db_minus_rect.collidepoint(pos):
+                self.inner_deadband_dps = max(0.0, self.inner_deadband_dps - 1.0)
+                return
+            if self.prefs_inner_db_plus_rect.collidepoint(pos):
+                self.inner_deadband_dps = min(self.min_turn_rate_dps, self.inner_deadband_dps + 1.0)
+                return
             if self.prefs_vis_all_rect.collidepoint(pos):
                 self.vis_mode = "all"
                 return
@@ -1458,6 +1585,24 @@ class SimulatorApp:
         self._render_text("-", self.prefs_rate_minus_rect.left + 8, self.prefs_rate_minus_rect.top + 1)
         self._render_text("+", self.prefs_rate_plus_rect.left + 7, self.prefs_rate_plus_rect.top + 1)
         self._render_text(f"{self.active_log_rate_hz:.0f}", self.prefs_rate_minus_rect.right + 8, self.prefs_rate_minus_rect.top + 1)
+        # ---- Min Turn Rate spinner ----
+        self._render_text("Min Turn (deg/s)", lx, self.prefs_min_turn_minus_rect.top + 2, small=True)
+        pygame.draw.rect(self.screen, (230, 230, 234), self.prefs_min_turn_minus_rect, border_radius=3)
+        pygame.draw.rect(self.screen, (230, 230, 234), self.prefs_min_turn_plus_rect, border_radius=3)
+        pygame.draw.rect(self.screen, (160, 160, 165), self.prefs_min_turn_minus_rect, 1, border_radius=3)
+        pygame.draw.rect(self.screen, (160, 160, 165), self.prefs_min_turn_plus_rect, 1, border_radius=3)
+        self._render_text("-", self.prefs_min_turn_minus_rect.left + 8, self.prefs_min_turn_minus_rect.top + 1)
+        self._render_text("+", self.prefs_min_turn_plus_rect.left + 7, self.prefs_min_turn_plus_rect.top + 1)
+        self._render_text(f"{self.min_turn_rate_dps:.0f}", self.prefs_min_turn_minus_rect.right + 8, self.prefs_min_turn_minus_rect.top + 1)
+        # ---- Inner Deadband spinner ----
+        self._render_text("Inner Dead (deg/s)", lx, self.prefs_inner_db_minus_rect.top + 2, small=True)
+        pygame.draw.rect(self.screen, (230, 230, 234), self.prefs_inner_db_minus_rect, border_radius=3)
+        pygame.draw.rect(self.screen, (230, 230, 234), self.prefs_inner_db_plus_rect, border_radius=3)
+        pygame.draw.rect(self.screen, (160, 160, 165), self.prefs_inner_db_minus_rect, 1, border_radius=3)
+        pygame.draw.rect(self.screen, (160, 160, 165), self.prefs_inner_db_plus_rect, 1, border_radius=3)
+        self._render_text("-", self.prefs_inner_db_minus_rect.left + 8, self.prefs_inner_db_minus_rect.top + 1)
+        self._render_text("+", self.prefs_inner_db_plus_rect.left + 7, self.prefs_inner_db_plus_rect.top + 1)
+        self._render_text(f"{self.inner_deadband_dps:.0f}", self.prefs_inner_db_minus_rect.right + 8, self.prefs_inner_db_minus_rect.top + 1)
         # ---- Visualization section ----
         vis_label_y = self.prefs_vis_all_rect.top - 35
         self._render_text("Visualization Mode", lx, vis_label_y, small=True)
@@ -1633,6 +1778,9 @@ class SimulatorApp:
 
             pygame.display.flip()
 
+            self._save_prefs_if_changed()
+
+        self._save_prefs_if_changed()
         pygame.quit()
 
 

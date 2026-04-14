@@ -3,7 +3,7 @@ import threading
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import tkinter as tk
@@ -278,7 +278,7 @@ def _flatten_history_features(mode: str, history: List[Dict[str, object]]) -> Li
     return features
 
 
-def parse_logs(file_paths: List[str]) -> Tuple[Dict[str, Dataset], Dict[str, int], Dict[str, int]]:
+def parse_logs(file_paths: List[str]):
     x_by_mode: Dict[str, List[List[float]]] = {
         MODE_HEADING: [],
         MODE_STRAFE: [],
@@ -290,6 +290,18 @@ def parse_logs(file_paths: List[str]) -> Tuple[Dict[str, Dataset], Dict[str, int
         MODE_HEADING_STRAFE: [],
     }
     inferred_input_dims: Dict[str, int] = {}
+    # Per-mode aggregation of deployment-relevant metadata across samples.
+    # Each value is a Counter[float] mapping observed value -> sample count.
+    from collections import Counter
+    metadata_counters: Dict[str, Dict[str, "Counter"]] = {
+        m: {
+            "min_turn_rate_dps": Counter(),
+            "inner_deadband_dps": Counter(),
+            "active_log_rate_hz": Counter(),
+            "history_len": Counter(),
+        }
+        for m in (MODE_HEADING, MODE_STRAFE, MODE_HEADING_STRAFE)
+    }
 
     stats = {
         "files": len(file_paths),
@@ -358,6 +370,15 @@ def parse_logs(file_paths: List[str]) -> Tuple[Dict[str, Dataset], Dict[str, int
                     x_by_mode[mode].append(x_row)
                     y_by_mode[mode].append(y_row)
 
+                    meta = metadata_counters[mode]
+                    meta["history_len"][int(history_len)] += 1
+                    if "min_turn_rate_dps" in row:
+                        meta["min_turn_rate_dps"][float(row["min_turn_rate_dps"])] += 1
+                    if "inner_deadband_dps" in row:
+                        meta["inner_deadband_dps"][float(row["inner_deadband_dps"])] += 1
+                    if "active_log_rate_hz" in row:
+                        meta["active_log_rate_hz"][float(row["active_log_rate_hz"])] += 1
+
                     stats["valid"] += 1
                 except Exception:
                     stats["invalid"] += 1
@@ -370,7 +391,23 @@ def parse_logs(file_paths: List[str]) -> Tuple[Dict[str, Dataset], Dict[str, int
                 np.asarray(y_by_mode[mode], dtype=np.float64),
             )
 
-    return datasets, stats, inferred_input_dims
+    metadata_summary: Dict[str, Dict[str, object]] = {}
+    for mode, counters in metadata_counters.items():
+        summary: Dict[str, object] = {}
+        for field, counter in counters.items():
+            if not counter:
+                summary[field] = {"value": None, "distinct": []}
+                continue
+            # Most-common value wins; expose all observed values for transparency.
+            dominant_value, _ = counter.most_common(1)[0]
+            distinct = sorted(
+                [{"value": v, "count": int(c)} for v, c in counter.items()],
+                key=lambda d: -d["count"],
+            )
+            summary[field] = {"value": dominant_value, "distinct": distinct}
+        metadata_summary[mode] = summary
+
+    return datasets, stats, inferred_input_dims, metadata_summary
 
 
 def split_train_val(dataset: Dataset, val_ratio: float = 0.2, seed: int = 123) -> Tuple[Dataset, Dataset]:
@@ -420,7 +457,8 @@ class TrainerApp:
     def __init__(self) -> None:
         self.root = tk.Tk()
         self.root.title("Navigation Log Trainer")
-        self.root.geometry("760x560")
+        self.root.geometry("760x720")
+        self.root.minsize(760, 680)
         self.tooltips: List[ToolTip] = []
 
         self.selected_files: List[str] = []
@@ -437,7 +475,12 @@ class TrainerApp:
         self._refresh_path_preview()
         self.model_name.trace_add("write", lambda *_: self._refresh_path_preview())
         self.output_dir.trace_add("write", lambda *_: self._refresh_path_preview())
-        self.root.after(150, self.select_files)
+        # Force a full layout pass before any modal dialog steals focus.
+        # Without this, nested ttk.LabelFrame widgets on Windows can render at
+        # zero height until a user-initiated event (e.g. Browse) forces a
+        # redraw — which hid the Train button on first launch.
+        self.root.update_idletasks()
+        self.root.after(400, self.select_files)
 
     def _build_ui(self) -> None:
         pad = {"padx": 8, "pady": 6}
@@ -502,17 +545,17 @@ class TrainerApp:
         )
         path_preview_label.grid(row=2, column=1, columnspan=2, sticky="w", **pad)
 
-        action_frame = ttk.Frame(self.root)
-        action_frame.pack(fill="x", **pad)
-        self.train_button = ttk.Button(action_frame, text="Train Models", command=self.start_training)
-        self.train_button.pack(anchor="w", padx=8)
-
         status_frame = ttk.LabelFrame(self.root, text="Status")
-        status_frame.pack(fill="both", expand=True, **pad)
+        status_frame.pack(side="bottom", fill="both", expand=True, **pad)
 
-        self.status_text = tk.Text(status_frame, height=14, wrap="word")
+        self.status_text = tk.Text(status_frame, height=10, wrap="word")
         self.status_text.pack(fill="both", expand=True, padx=8, pady=8)
         self.status_text.configure(state="disabled")
+
+        action_frame = ttk.Frame(self.root)
+        action_frame.pack(side="bottom", fill="x", **pad)
+        self.train_button = ttk.Button(action_frame, text="Train Models", command=self.start_training)
+        self.train_button.pack(anchor="w", padx=8)
 
         self.tooltips.extend(
             [
@@ -572,16 +615,21 @@ class TrainerApp:
         bad = '<>:"/\\|?*'
         return "".join("_" if c in bad else c for c in stem)
 
-    def _resolve_model_paths(self, mode_suffix: str) -> Tuple[Path, Path]:
+    def _resolve_model_paths(self, mode_suffix: str) -> Tuple[Path, Path, Path]:
         output_dir = Path(self.output_dir.get())
         stem = self._sanitize_model_stem(self.model_name.get())
         if stem:
             base = f"{stem}_{mode_suffix}"
-            return output_dir / f"model_{base}.json", output_dir / f"metrics_{base}.json"
+            return (
+                output_dir / f"model_{base}.json",
+                output_dir / f"metrics_{base}.json",
+                output_dir / f"params_{base}.json",
+            )
         idx = next_index(output_dir, mode_suffix) if output_dir.exists() else 1
         return (
             output_dir / f"model_{mode_suffix}_{idx:03d}.json",
             output_dir / f"metrics_{mode_suffix}_{idx:03d}.json",
+            output_dir / f"params_{mode_suffix}_{idx:03d}.json",
         )
 
     def _refresh_path_preview(self) -> None:
@@ -589,7 +637,7 @@ class TrainerApp:
             suffixes = ["heading", "strafe", "heading_strafe"]
             lines: List[str] = []
             for s in suffixes:
-                model_p, _ = self._resolve_model_paths(s)
+                model_p, _, _ = self._resolve_model_paths(s)
                 lines.append(f"{s}: {model_p}")
             self.path_preview_var.set("\n".join(lines))
         except Exception as e:
@@ -644,6 +692,7 @@ class TrainerApp:
         history: Dict[str, List[float]],
         cfg: Dict[str, object],
         n_samples: int,
+        mode_meta: Optional[Dict[str, object]] = None,
     ) -> Tuple[Path, Path]:
         mode_suffix_map = {
             MODE_HEADING: "heading",
@@ -651,7 +700,7 @@ class TrainerApp:
             MODE_HEADING_STRAFE: "heading_strafe",
         }
         mode_suffix = mode_suffix_map.get(mode, "other")
-        model_path, metrics_path = self._resolve_model_paths(mode_suffix)
+        model_path, metrics_path, params_path = self._resolve_model_paths(mode_suffix)
 
         memory_steps = _infer_memory_steps(input_dim=input_dim, mode=mode)
         output_layout = _action_keys_for_mode(mode)
@@ -695,13 +744,133 @@ class TrainerApp:
         with open(metrics_path, "w", encoding="utf-8") as f:
             json.dump(metrics_blob, f)
 
+        params_blob = self._build_params_blob(
+            mode=mode,
+            mode_suffix=mode_suffix,
+            memory_steps=int(memory_steps),
+            input_dim=int(input_dim),
+            output_layout=list(output_layout),
+            activation=str(cfg["activation"]),
+            model_path=model_path,
+            mode_meta=mode_meta or {},
+        )
+        with open(params_path, "w", encoding="utf-8") as f:
+            json.dump(params_blob, f, indent=2)
+
+        self._last_params_path = params_path
         return model_path, metrics_path
+
+    def _build_params_blob(
+        self,
+        mode: str,
+        mode_suffix: str,
+        memory_steps: int,
+        input_dim: int,
+        output_layout: List[str],
+        activation: str,
+        model_path: Path,
+        mode_meta: Dict[str, object],
+    ) -> Dict[str, object]:
+        def dominant(field: str, default: float) -> float:
+            info = mode_meta.get(field) if isinstance(mode_meta, dict) else None
+            if isinstance(info, dict):
+                val = info.get("value")
+                if val is not None:
+                    return float(val)
+            return float(default)
+
+        min_turn = dominant("min_turn_rate_dps", 0.0)
+        inner_db = dominant("inner_deadband_dps", 0.0)
+        log_rate_hz = dominant("active_log_rate_hz", 10.0)
+
+        output_units = {
+            "rotation_rate": "deg/s",
+            "drive_speed": "m/s",
+            "vx": "m/s",
+            "vy": "m/s",
+        }
+        output_signals = [{"name": k, "unit": output_units.get(k, "")} for k in output_layout]
+
+        action_slice_order_map = {
+            MODE_HEADING: ["drive_speed", "rotation_rate"],
+            MODE_STRAFE: ["vx", "vy"],
+            MODE_HEADING_STRAFE: ["rotation_rate", "vx", "vy"],
+        }
+
+        saturation = {
+            "rotation_rate_dps": 40.0,
+            "drive_speed_mps": 0.40,
+            "vx_mps": 0.40,
+            "vy_mps": 0.40,
+        }
+
+        recommended_hysteresis = {
+            "rotation_rate_enter_dps": float(min_turn) if min_turn > 0.0 else None,
+            "rotation_rate_exit_dps": float(min_turn * 0.6) if min_turn > 0.0 else None,
+        }
+
+        return {
+            "saved_at": datetime.now().isoformat(timespec="seconds"),
+            "schema_version": 1,
+            "mode": mode,
+            "mode_suffix": mode_suffix,
+            "model_file": model_path.name,
+            "memory_steps": int(memory_steps),
+            "input_dim": int(input_dim),
+            "output_dim": len(output_layout),
+            "log_rate_hz": float(log_rate_hz),
+            "activation": activation,
+            "whisker": {
+                "count": 11,
+                "max_length_m": 0.50,
+                "angles_deg_left_to_right": [90, 60, 45, 30, 15, 0, -15, -30, -45, -60, -90],
+            },
+            "input_signals": {
+                "per_timestep_state": [
+                    {"name": "whisker_lengths", "unit": "m", "count": 11, "range": [0.0, 0.50]},
+                    {"name": "heading_to_target", "unit": "deg", "sign": "+ = target to robot LEFT"},
+                ],
+                "past_action_slice_order": action_slice_order_map.get(mode, []),
+            },
+            "output_signals": output_signals,
+            "sign_conventions": {
+                "frame": "right-hand, z-up",
+                "rotation_rate": "+ = CCW (turn LEFT)",
+                "drive_speed": "+ = forward (robot x-axis)",
+                "vx": "+ = forward (robot x-axis)",
+                "vy": "+ = robot LEFT (robot y-axis)",
+                "heading_to_target": "+ = target on robot LEFT",
+            },
+            "saturation_limits": saturation,
+            "stiction": {
+                "min_turn_rate_dps": min_turn,
+                "inner_deadband_dps": inner_db,
+                "notes": (
+                    "Apply the same two-threshold snap at runtime on rotation_rate before "
+                    "publishing to motors. Source: training logs (dominant value across samples)."
+                ),
+            },
+            "recommended_hysteresis": recommended_hysteresis,
+            "source_metadata_counters": mode_meta,
+        }
+
+    def _log_metadata_summary(self, mode_label: str, mode_meta: Dict[str, object]) -> None:
+        if not mode_meta:
+            return
+        for field, info in mode_meta.items():
+            if not isinstance(info, dict):
+                continue
+            distinct = info.get("distinct") or []
+            if len(distinct) > 1:
+                pretty = ", ".join(f"{d['value']}x{d['count']}" for d in distinct)
+                self.log(f"[{mode_label}] {field} inconsistent across logs: {pretty} (dominant wins)")
 
     def _train_one_mode(
         self,
         mode: str,
         dataset: Dataset,
         cfg: Dict[str, object],
+        mode_meta: Optional[Dict[str, object]] = None,
     ) -> None:
         train_set, val_set = split_train_val(dataset)
 
@@ -746,11 +915,15 @@ class TrainerApp:
             y_std=y_std,
             history=history,
             cfg=cfg,
+            mode_meta=mode_meta or {},
             n_samples=int(dataset.x.shape[0]),
         )
 
         self.log(f"Saved model: {model_path}")
         self.log(f"Saved metrics: {metrics_path}")
+        params_path = getattr(self, "_last_params_path", None)
+        if params_path is not None:
+            self.log(f"Saved params: {params_path}")
         self.log(
             f"{mode} final losses -> train: {history['train_loss'][-1]:.6f}, "
             f"val: {history['val_loss'][-1]:.6f}"
@@ -771,7 +944,7 @@ class TrainerApp:
             output_dir.mkdir(parents=True, exist_ok=True)
 
             self.log("Reading selected log files...")
-            datasets, stats, inferred_input_dims = parse_logs(self.selected_files)
+            datasets, stats, inferred_input_dims, metadata_summary = parse_logs(self.selected_files)
             self.log(
                 "Parsed logs: "
                 f"files={stats['files']}, lines={stats['lines']}, valid={stats['valid']}, invalid={stats['invalid']}"
@@ -791,20 +964,16 @@ class TrainerApp:
             if not datasets:
                 raise ValueError("No valid samples found in selected files")
 
-            if MODE_HEADING in datasets:
-                self._train_one_mode(MODE_HEADING, datasets[MODE_HEADING], cfg)
-            else:
-                self.log("Skipping heading_drive: no samples")
-
-            if MODE_STRAFE in datasets:
-                self._train_one_mode(MODE_STRAFE, datasets[MODE_STRAFE], cfg)
-            else:
-                self.log("Skipping xy_strafe: no samples")
-
-            if MODE_HEADING_STRAFE in datasets:
-                self._train_one_mode(MODE_HEADING_STRAFE, datasets[MODE_HEADING_STRAFE], cfg)
-            else:
-                self.log("Skipping heading_strafe: no samples")
+            for mode_key, mode_label in (
+                (MODE_HEADING, "heading_drive"),
+                (MODE_STRAFE, "xy_strafe"),
+                (MODE_HEADING_STRAFE, "heading_strafe"),
+            ):
+                if mode_key in datasets:
+                    self._log_metadata_summary(mode_label, metadata_summary.get(mode_key, {}))
+                    self._train_one_mode(mode_key, datasets[mode_key], cfg, metadata_summary.get(mode_key, {}))
+                else:
+                    self.log(f"Skipping {mode_label}: no samples")
 
             self.log("Training complete")
             self.root.after(0, lambda: messagebox.showinfo("Done", "Training complete"))

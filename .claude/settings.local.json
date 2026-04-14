@@ -3,7 +3,10 @@
     "allow": [
       "Bash(wc -l \"c:/GITHUB Repos/RoboSim_Navigation_Trainer/\"*.py)",
       "Bash(python -c \"import ast; ast.parse\\(open\\('train_mlp.py'\\).read\\(\\)\\); print\\('OK'\\)\")",
-      "Bash(python -c \"import ast; ast.parse\\(open\\('simulator.py'\\).read\\(\\)\\); print\\('OK'\\)\")"
+      "Bash(python -c \"import ast; ast.parse\\(open\\('simulator.py'\\).read\\(\\)\\); print\\('OK'\\)\")",
+      "Bash(python -c \"import ast; ast.parse\\(open\\('simulator.py'\\).read\\(\\)\\); ast.parse\\(open\\('sim_core.py'\\).read\\(\\)\\); print\\('OK'\\)\")",
+      "Bash(python -c ':*)",
+      "Bash(python -c \"import simulator; print\\('import OK'\\)\")"
     ]
   }
 }
