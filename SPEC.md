@@ -146,11 +146,16 @@ Rules:
 
 - `history` has length `history_len`, oldest first. The **last** entry is
   the most recent timestep.
-- Early-in-episode rows are padded on the left with zero entries
-  (`_zero_timestep_record`). A zero entry has zero whiskers, zero heading,
-  and a zero action dict. The trainer uses exactly the same zero-padding;
-  a real-robot consumer must do likewise or the first few inferences will
-  mis-match the training distribution.
+- Early-in-episode rows are padded on the left with **copies of the first
+  real observation's state and a zero action** (`_state_pad_record` in
+  the simulator, `_state_pad_step` in the trainer). Pad whiskers and
+  heading are copied from `history[0]`; action keys are zeroed (no
+  command was issued before the episode began). The trainer uses
+  exactly the same copy-padding; a real-robot consumer must do likewise
+  or the first `N − 1` inferences will mis-match the training
+  distribution. Literal zero-padding on whiskers would inject the false
+  signal "obstacle at distance 0 in every direction" — see
+  [MODEL_SPEC.md §3.5](MODEL_SPEC.md).
 - `whisker_lengths` and `heading_to_target` are raw (metres, degrees).
 - Each `action` dict always contains exactly the keys for that mode, in
   any order — the parser re-orders them canonically.

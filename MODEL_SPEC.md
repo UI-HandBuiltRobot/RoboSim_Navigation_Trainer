@@ -127,23 +127,32 @@ exposed externally.
 
 To infer `N` from the blob: `N = (input_dim + A) / (12 + A)`.
 
-### 3.5 Zero-padding on episode start
+### 3.5 Padding on episode start (state-copy / zero-action)
 
 At the start of an episode the history deque has fewer than `N` real
-observations. Pad the deque on the **left** (oldest positions) with zero
-entries:
+observations. Pad the deque on the **left** (oldest positions) with
+**copies of the first real observation's state**, but with the **action
+slot zeroed**:
 
 ```
-zero_entry = {
-    whisker_lengths: [0.0] * 11,   # NOT 0.5 — actual zero
-    heading_to_target: 0.0,
-    action: {each_key: 0.0}
+pad_entry = {
+    whisker_lengths:    <copy from history[0].whisker_lengths>,
+    heading_to_target:  <copy from history[0].heading_to_target>,
+    action:             {each_key: 0.0},
 }
 ```
 
-Use the same zero-padding at deployment; the training distribution was
-built with these exact zeros. Any different padding value will shift the
-normalised inputs out of distribution.
+Rationale: literal zero-padding on `whisker_lengths` would inject the
+signal "obstacle at distance 0 in every direction" into the older slots
+of the memory window, which the model would interpret as "boxed in" — a
+strong false signal that confounds early-episode behavior. Copy-padding
+the state preserves the meaning "we have no real history, but the world
+hasn't changed yet"; zeroing the action correctly says "no command has
+been issued yet."
+
+Use the **same** padding at deployment as at training. Any divergence
+between the two will shift the first `N − 1` ticks of every episode out
+of distribution.
 
 ---
 
@@ -211,17 +220,22 @@ def infer(x_raw, blob):
 ```
 On episode reset:
     deque.clear()
-    fill deque with (memory_steps - 1) zero entries   # oldest first
+    read sensors -> initial_state = {whisker_lengths, heading_to_target}
+    append {state: initial_state, action: zero_action} to deque
+    last_issued_command = zero_action
 
 Each control step:
-    1. Read sensors → build current_state = {whisker_lengths, heading_to_target}
+    1. Read sensors -> current_state = {whisker_lengths, heading_to_target}
     2. Append {state: current_state, action: last_issued_command} to deque
        (use zero action if no command has been issued yet)
-    3. Flatten deque to feature vector per Section 3.2
-    4. Call infer(feature_vector, blob)
-    5. Clamp output to physical limits (Section 2)
-    6. Send clamped command to motors
-    7. Store clamped command as last_issued_command for next step
+    3. Build a length-N window from the deque. If fewer than N real
+       entries exist, pad on the LEFT with copies of history[0]'s state
+       and a zero action (Section 3.5).
+    4. Flatten to feature vector per Section 3.2
+    5. Call infer(feature_vector, blob)
+    6. Clamp output to physical limits (Section 2)
+    7. Send clamped command to motors
+    8. Store clamped command as last_issued_command for next step
 ```
 
 The `action` stored with each step is the command that was **actually
@@ -235,9 +249,10 @@ sent** after clamping, not the raw network output.
 of shuffled data). `std` values below `1e-6` are replaced with `1.0` to
 prevent division by zero.
 
-Because early-episode observations include zero-padded history slots, the
-per-feature means for older-history positions are slightly biased toward
-zero. This is intentional — it matches the zero-padding at inference.
+Because early-episode observations include copy-padded history slots
+(Section 3.5), the per-feature stats for older-history positions reflect
+that mix. This is intentional — it matches the same copy-padding at
+inference.
 
 The `y_mean` / `y_std` are computed the same way over the label (action)
 distribution. They encode the typical magnitude and centre of each output
@@ -253,7 +268,7 @@ activations.
 - [ ] Action slices use the mode-specific order in Section 3.3 (note `heading_drive` is `drive_speed` first).
 - [ ] Action slices in physical units (m/s, deg/s) — **not** normalised.
 - [ ] No action slice appended for the final (current) timestep.
-- [ ] History deque seeded with **zero** entries (not `WHISKER_MAX` or any other value).
+- [ ] History pad slots use **copies of the first real observation's state** with **zero action** (Section 3.5). NOT literal whiskers=0 (which would mean "obstacles everywhere").
 - [ ] Input normalised with `(x - x_mean) / x_std` using blob's stored stats.
 - [ ] Output un-normalised with `y_norm * y_std + y_mean` → physical units.
 - [ ] Output clamped to ±40 deg/s (rotation), ±0.40 m/s (translation) before motor send.

@@ -240,10 +240,17 @@ def _build_input_layout(mode: str, memory_steps: int) -> List[str]:
     return layout
 
 
-def _zero_history_step(mode: str) -> Dict[str, object]:
+def _state_pad_step(mode: str, source: Dict[str, object]) -> Dict[str, object]:
+    """Copy state from `source`, zero the action. Used to pre-pad a short
+    history window without injecting whiskers=0 (which the model would read
+    as 'obstacle at distance 0 in every direction')."""
+    whiskers_src = source.get("whisker_lengths") if isinstance(source, dict) else None
+    if not isinstance(whiskers_src, (list, tuple)):
+        whiskers_src = [0.5] * 11
+    heading_src = source.get("heading_to_target", 0.0) if isinstance(source, dict) else 0.0
     return {
-        "whisker_lengths": [0.0] * 11,
-        "heading_to_target": 0.0,
+        "whisker_lengths": [float(v) for v in whiskers_src],
+        "heading_to_target": float(heading_src),
         "action": {k: 0.0 for k in _action_keys_for_mode(mode)},
     }
 
@@ -297,6 +304,7 @@ def parse_logs(file_paths: List[str]):
         m: {
             "min_turn_rate_dps": Counter(),
             "inner_deadband_dps": Counter(),
+            "hysteresis_band_dps": Counter(),
             "active_log_rate_hz": Counter(),
             "history_len": Counter(),
         }
@@ -336,8 +344,10 @@ def parse_logs(file_paths: List[str]):
 
                     history_len = max(1, history_len)
                     history = raw_history[-history_len:]
-                    while len(history) < history_len:
-                        history.insert(0, _zero_history_step(mode))
+                    if history:
+                        pad_source = history[0]
+                        while len(history) < history_len:
+                            history.insert(0, _state_pad_step(mode, pad_source))
 
                     x_row = _flatten_history_features(mode, history)
 
@@ -376,6 +386,8 @@ def parse_logs(file_paths: List[str]):
                         meta["min_turn_rate_dps"][float(row["min_turn_rate_dps"])] += 1
                     if "inner_deadband_dps" in row:
                         meta["inner_deadband_dps"][float(row["inner_deadband_dps"])] += 1
+                    if "hysteresis_band_dps" in row:
+                        meta["hysteresis_band_dps"][float(row["hysteresis_band_dps"])] += 1
                     if "active_log_rate_hz" in row:
                         meta["active_log_rate_hz"][float(row["active_log_rate_hz"])] += 1
 
@@ -781,6 +793,7 @@ class TrainerApp:
 
         min_turn = dominant("min_turn_rate_dps", 0.0)
         inner_db = dominant("inner_deadband_dps", 0.0)
+        hyst_band = dominant("hysteresis_band_dps", 0.0)
         log_rate_hz = dominant("active_log_rate_hz", 10.0)
 
         output_units = {
@@ -804,9 +817,25 @@ class TrainerApp:
             "vy_mps": 0.40,
         }
 
+        # Hysteresis exit threshold is min_turn - hyst_band. If band is 0,
+        # the user did not configure a feather window during data collection
+        # and we fall back to a sensible 40% gap (exit = 0.6 * min).
+        if min_turn > 0.0:
+            if hyst_band > 0.0:
+                exit_dps = max(0.0, min_turn - hyst_band)
+                hyst_band_recorded = hyst_band
+            else:
+                exit_dps = min_turn * 0.6
+                hyst_band_recorded = min_turn - exit_dps
+        else:
+            exit_dps = None
+            hyst_band_recorded = 0.0
+
         recommended_hysteresis = {
             "rotation_rate_enter_dps": float(min_turn) if min_turn > 0.0 else None,
-            "rotation_rate_exit_dps": float(min_turn * 0.6) if min_turn > 0.0 else None,
+            "rotation_rate_exit_dps": float(exit_dps) if exit_dps is not None else None,
+            "hysteresis_band_dps": float(hyst_band_recorded),
+            "source": "from training logs" if hyst_band > 0.0 else "default 0.4 * min" if min_turn > 0.0 else "disabled",
         }
 
         return {
@@ -846,8 +875,10 @@ class TrainerApp:
                 "min_turn_rate_dps": min_turn,
                 "inner_deadband_dps": inner_db,
                 "notes": (
-                    "Apply the same two-threshold snap at runtime on rotation_rate before "
-                    "publishing to motors. Source: training logs (dominant value across samples)."
+                    "Apply the dual-band stiction snap (entry path) and hysteresis "
+                    "feather (turning path) at runtime on rotation_rate before "
+                    "publishing to motors — see ROS_DEPLOYMENT_SPEC.md \u00a75. "
+                    "Source: training logs (dominant value across samples)."
                 ),
             },
             "recommended_hysteresis": recommended_hysteresis,

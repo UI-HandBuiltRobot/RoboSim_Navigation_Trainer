@@ -100,6 +100,8 @@ class SimulatorApp:
         self.sparse_tick_timer = 0.0
         self.min_turn_rate_dps = 0.0
         self.inner_deadband_dps = 0.0
+        self.hysteresis_band_dps = 0.0
+        self._hysteresis_state: Dict[str, bool] = {"was_turning": False}
         self.in_memory_log: List[Dict] = []
         self.log_timer = 0.0
         self.history_len = 1
@@ -149,6 +151,7 @@ class SimulatorApp:
             "active_log_rate_hz": float(self.active_log_rate_hz),
             "min_turn_rate_dps": float(self.min_turn_rate_dps),
             "inner_deadband_dps": float(self.inner_deadband_dps),
+            "hysteresis_band_dps": float(self.hysteresis_band_dps),
             "obstacle_count": int(self.obstacle_count),
             "vis_mode": str(self.vis_mode),
             "input_mode": str(self.input_mode),
@@ -193,6 +196,13 @@ class SimulatorApp:
             self.inner_deadband_dps = max(
                 0.0,
                 min(self.min_turn_rate_dps, float(data.get("inner_deadband_dps", self.inner_deadband_dps))),
+            )
+        except Exception:
+            pass
+        try:
+            self.hysteresis_band_dps = max(
+                0.0,
+                min(self.min_turn_rate_dps, float(data.get("hysteresis_band_dps", self.hysteresis_band_dps))),
             )
         except Exception:
             pass
@@ -278,7 +288,7 @@ class SimulatorApp:
         self._recompute_prefs_layout()
 
     def _recompute_prefs_layout(self) -> None:
-        pw, ph = 460, 470
+        pw, ph = 460, 520
         px = (self.window_w - pw) // 2
         py = (self.window_h - ph) // 2
         self.prefs_rect = pygame.Rect(px, py, pw, ph)
@@ -288,10 +298,11 @@ class SimulatorApp:
         row2 = py + 110   # Rate Hz
         row3a = py + 160  # Min Turn Rate
         row3b = py + 210  # Inner Deadband
-        row4 = py + 270   # Radio: All
-        row5 = py + 305   # Radio: Action radius
-        row6 = py + 340   # Radio: Detected
-        row7 = py + 375   # Radio: Sparse sensing
+        row3c = py + 260  # Hysteresis Band
+        row4 = py + 320   # Radio: All
+        row5 = py + 355   # Radio: Action radius
+        row6 = py + 390   # Radio: Detected
+        row7 = py + 425   # Radio: Sparse sensing
         self.prefs_hist_minus_rect = pygame.Rect(lx + 180, row1, 24, 24)
         self.prefs_hist_plus_rect  = pygame.Rect(lx + 250, row1, 24, 24)
         self.prefs_rate_minus_rect = pygame.Rect(lx + 180, row2, 24, 24)
@@ -300,6 +311,8 @@ class SimulatorApp:
         self.prefs_min_turn_plus_rect  = pygame.Rect(lx + 250, row3a, 24, 24)
         self.prefs_inner_db_minus_rect = pygame.Rect(lx + 180, row3b, 24, 24)
         self.prefs_inner_db_plus_rect  = pygame.Rect(lx + 250, row3b, 24, 24)
+        self.prefs_hyst_minus_rect = pygame.Rect(lx + 180, row3c, 24, 24)
+        self.prefs_hyst_plus_rect  = pygame.Rect(lx + 250, row3c, 24, 24)
         self.prefs_vis_all_rect    = pygame.Rect(lx + 10, row4, 18, 18)
         self.prefs_vis_radius_rect = pygame.Rect(lx + 10, row5, 18, 18)
         self.prefs_vis_detect_rect = pygame.Rect(lx + 10, row6, 18, 18)
@@ -327,6 +340,7 @@ class SimulatorApp:
             rate_field_rect = self.prefs_rate_minus_rect.union(self.prefs_rate_plus_rect).inflate(120, 10)
             min_turn_field_rect = self.prefs_min_turn_minus_rect.union(self.prefs_min_turn_plus_rect).inflate(120, 10)
             inner_db_field_rect = self.prefs_inner_db_minus_rect.union(self.prefs_inner_db_plus_rect).inflate(120, 10)
+            hyst_field_rect = self.prefs_hyst_minus_rect.union(self.prefs_hyst_plus_rect).inflate(120, 10)
             prefs_tips: List[Tuple[pygame.Rect, str]] = [
                 (self.prefs_close_rect, "Close preferences panel"),
                 (hist_field_rect, "History: logged context window length; larger values let the trainer learn temporal behavior"),
@@ -341,6 +355,9 @@ class SimulatorApp:
                 (inner_db_field_rect, "Inner Deadband: commands with |rate| below this snap to 0"),
                 (self.prefs_inner_db_minus_rect, "Inner Deadband -: shrink zero-snap zone"),
                 (self.prefs_inner_db_plus_rect, "Inner Deadband +: grow zero-snap zone (capped at Min Turn Rate)"),
+                (hyst_field_rect, "Hyst Band (model mode only): once turning, allow rate to feather down to (Min - Band) before stopping. Prevents chatter near the threshold. 0 disables."),
+                (self.prefs_hyst_minus_rect, "Hyst Band -: shrink feather window (less hysteresis)"),
+                (self.prefs_hyst_plus_rect, "Hyst Band +: widen feather window (more hysteresis); capped at Min Turn Rate"),
                 (self.prefs_vis_all_rect, "Show all objects: render every obstacle regardless of proximity"),
                 (self.prefs_vis_radius_rect, "Show within action radius: render only obstacles within whisker reach"),
                 (self.prefs_vis_detect_rect, "Show when detected: obstacle appears when whisker hits it; fades after history_len / rate_hz seconds"),
@@ -516,6 +533,7 @@ class SimulatorApp:
         self.log_timer = 0.0
         self.history_buffer.clear()
         self.model_inference_buffer.clear()
+        self._hysteresis_state["was_turning"] = False
         n_obs = max(1, int(self.obstacle_count))
         
         # If switching to strafe mode, orient robot toward the target.
@@ -556,13 +574,25 @@ class SimulatorApp:
                 self._load_latest_model_for_mode(self.robot.control_mode)
             self._update_command_from_model()
 
-        # Simulate motor stiction: snap sub-threshold rotation commands before
-        # they are logged and before physics applies them. Defaults (0/0) are
-        # a no-op.
+        # Steering pipeline. Two paths:
+        #   - Human modes (keyboard/gamepad): stateless dual-band snap only.
+        #     This is what gets logged as training labels — no per-tick memory
+        #     should leak into the data distribution.
+        #   - Model mode: dual-band snap + hysteresis-with-feather-band, so
+        #     model-in-sim playback previews exactly what the deployed ROS
+        #     node will do (matches ROS_DEPLOYMENT_SPEC.md §5).
         rate = float(self.robot.drive_command.get("rotation_rate", 0.0))
-        self.robot.drive_command["rotation_rate"] = self.robot.apply_rotation_stiction(
-            rate, self.min_turn_rate_dps, self.inner_deadband_dps
-        )
+        if self.input_mode == "model" and self.hysteresis_band_dps > 0.0 and self.min_turn_rate_dps > 0.0:
+            exit_dps = max(0.0, self.min_turn_rate_dps - self.hysteresis_band_dps)
+            self.robot.drive_command["rotation_rate"] = self.robot.apply_rotation_pipeline(
+                rate, self.min_turn_rate_dps, self.inner_deadband_dps,
+                exit_dps, self._hysteresis_state,
+            )
+        else:
+            self.robot.drive_command["rotation_rate"] = self.robot.apply_rotation_stiction(
+                rate, self.min_turn_rate_dps, self.inner_deadband_dps
+            )
+            self._hysteresis_state["was_turning"] = False
     
     def check_goal_reached(self) -> bool:
         """Check if robot has reached the target."""
@@ -689,8 +719,10 @@ class SimulatorApp:
         self.history_buffer.append(self._capture_timestep_record(mode))
 
         history = list(self.history_buffer)
-        while len(history) < self.history_len:
-            history.insert(0, self._zero_timestep_record(mode))
+        if history:
+            pad_source = history[0]
+            while len(history) < self.history_len:
+                history.insert(0, self._state_pad_record(mode, pad_source))
 
         return {
             "schema_version": 2,
@@ -700,6 +732,7 @@ class SimulatorApp:
             "active_log_rate_hz": float(self.active_log_rate_hz),
             "min_turn_rate_dps": float(self.min_turn_rate_dps),
             "inner_deadband_dps": float(self.inner_deadband_dps),
+            "hysteresis_band_dps": float(self.hysteresis_band_dps),
             "history": history,
         }
 
@@ -724,12 +757,20 @@ class SimulatorApp:
             "action": action,
         }
 
-    def _zero_timestep_record(self, mode: str) -> Dict:
+    def _state_pad_record(self, mode: str, source: Dict) -> Dict:
+        """Pre-history pad: copy state from the earliest real observation, but
+        zero the action (no command was issued before the episode began).
+        Avoids the 'all whiskers reading zero = obstacles everywhere' artifact
+        of literal zero-padding."""
         action_keys = self._command_keys_for_mode(mode)
+        whiskers_src = source.get("whisker_lengths") if isinstance(source, dict) else None
+        if not isinstance(whiskers_src, (list, tuple)):
+            whiskers_src = [Robot.WHISKER_MAX_LEN_M for _ in Robot.WHISKER_ANGLES_DEG]
+        heading_src = source.get("heading_to_target", 0.0) if isinstance(source, dict) else 0.0
         return {
             "mode": mode,
-            "whisker_lengths": [0.0 for _ in Robot.WHISKER_ANGLES_DEG],
-            "heading_to_target": 0.0,
+            "whisker_lengths": [float(v) for v in whiskers_src],
+            "heading_to_target": float(heading_src),
             "action": {k: 0.0 for k in action_keys},
         }
 
@@ -1185,10 +1226,12 @@ class SimulatorApp:
         # Capture current state (action field = last issued drive_command)
         self.model_inference_buffer.append(self._capture_timestep_record(mode))
 
-        # Build history window of length history_len, zero-padding if needed
+        # Build history window of length history_len, copy-padding if needed
         history = list(self.model_inference_buffer)[-history_len:]
-        while len(history) < history_len:
-            history.insert(0, self._zero_timestep_record(mode))
+        if history:
+            pad_source = history[0]
+            while len(history) < history_len:
+                history.insert(0, self._state_pad_record(mode, pad_source))
 
         # Flatten: each step contributes state; all but the last also contribute action
         feat: List[float] = []
@@ -1246,6 +1289,8 @@ class SimulatorApp:
                 self.min_turn_rate_dps = max(0.0, self.min_turn_rate_dps - 1.0)
                 if self.inner_deadband_dps > self.min_turn_rate_dps:
                     self.inner_deadband_dps = self.min_turn_rate_dps
+                if self.hysteresis_band_dps > self.min_turn_rate_dps:
+                    self.hysteresis_band_dps = self.min_turn_rate_dps
                 return
             if self.prefs_min_turn_plus_rect.collidepoint(pos):
                 self.min_turn_rate_dps = min(39.0, self.min_turn_rate_dps + 1.0)
@@ -1255,6 +1300,12 @@ class SimulatorApp:
                 return
             if self.prefs_inner_db_plus_rect.collidepoint(pos):
                 self.inner_deadband_dps = min(self.min_turn_rate_dps, self.inner_deadband_dps + 1.0)
+                return
+            if self.prefs_hyst_minus_rect.collidepoint(pos):
+                self.hysteresis_band_dps = max(0.0, self.hysteresis_band_dps - 1.0)
+                return
+            if self.prefs_hyst_plus_rect.collidepoint(pos):
+                self.hysteresis_band_dps = min(self.min_turn_rate_dps, self.hysteresis_band_dps + 1.0)
                 return
             if self.prefs_vis_all_rect.collidepoint(pos):
                 self.vis_mode = "all"
@@ -1603,6 +1654,15 @@ class SimulatorApp:
         self._render_text("-", self.prefs_inner_db_minus_rect.left + 8, self.prefs_inner_db_minus_rect.top + 1)
         self._render_text("+", self.prefs_inner_db_plus_rect.left + 7, self.prefs_inner_db_plus_rect.top + 1)
         self._render_text(f"{self.inner_deadband_dps:.0f}", self.prefs_inner_db_minus_rect.right + 8, self.prefs_inner_db_minus_rect.top + 1)
+        # ---- Hysteresis Band spinner (model mode only) ----
+        self._render_text("Hyst Band (deg/s)", lx, self.prefs_hyst_minus_rect.top + 2, small=True)
+        pygame.draw.rect(self.screen, (230, 230, 234), self.prefs_hyst_minus_rect, border_radius=3)
+        pygame.draw.rect(self.screen, (230, 230, 234), self.prefs_hyst_plus_rect, border_radius=3)
+        pygame.draw.rect(self.screen, (160, 160, 165), self.prefs_hyst_minus_rect, 1, border_radius=3)
+        pygame.draw.rect(self.screen, (160, 160, 165), self.prefs_hyst_plus_rect, 1, border_radius=3)
+        self._render_text("-", self.prefs_hyst_minus_rect.left + 8, self.prefs_hyst_minus_rect.top + 1)
+        self._render_text("+", self.prefs_hyst_plus_rect.left + 7, self.prefs_hyst_plus_rect.top + 1)
+        self._render_text(f"{self.hysteresis_band_dps:.0f}", self.prefs_hyst_minus_rect.right + 8, self.prefs_hyst_minus_rect.top + 1)
         # ---- Visualization section ----
         vis_label_y = self.prefs_vis_all_rect.top - 35
         self._render_text("Visualization Mode", lx, vis_label_y, small=True)

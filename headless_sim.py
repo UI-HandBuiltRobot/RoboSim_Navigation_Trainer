@@ -115,16 +115,19 @@ class HeadlessSimulator:
         self._window_start_time = 0.0
         self._window_start_distance = self._distance_to_target()
 
-        # Initialise history buffers with zero-padding, then prime with current state.
-        zero_state = np.zeros(_STATE_DIM, dtype=np.float32)
+        # Prime history buffers with copies of the initial real observation
+        # for state slots, and zero-pad the action slots (no command issued
+        # yet). Avoids the 'whiskers=0 = obstacles everywhere' artifact that
+        # literal zero-padding would produce in the first N-1 ticks.
         zero_action = np.zeros(self._n_action, dtype=np.float32)
+        initial_state = self._encode_state()
         self._state_history.clear()
         self._action_history.clear()
         for _ in range(self.history_window - 1):
-            self._state_history.append(zero_state.copy())
+            self._state_history.append(initial_state.copy())
         for _ in range(self.history_window - 1):
             self._action_history.append(zero_action.copy())
-        self._state_history.append(self._encode_state())
+        self._state_history.append(initial_state)
 
     def reset(self, scenario: Optional[dict] = None) -> np.ndarray:
         """Reset map/robot state and return initial observation.

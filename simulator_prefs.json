@@ -1,12 +1,13 @@
 {
   "history_len": 5,
   "active_log_rate_hz": 5.0,
-  "min_turn_rate_dps": 30.0,
+  "min_turn_rate_dps": 35.0,
   "inner_deadband_dps": 5.0,
-  "obstacle_count": 3,
-  "vis_mode": "action_radius",
-  "input_mode": "keyboard",
-  "logging_enabled": false,
+  "hysteresis_band_dps": 12.0,
+  "obstacle_count": 25,
+  "vis_mode": "all",
+  "input_mode": "model",
+  "logging_enabled": true,
   "robot_aligned_view": true,
   "control_mode": "heading_drive"
 }

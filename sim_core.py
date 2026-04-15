@@ -246,6 +246,52 @@ class Robot:
             return math.copysign(min_turn_rate_dps, rate_dps)
         return rate_dps
 
+    @staticmethod
+    def apply_rotation_pipeline(
+        rate_dps: float,
+        min_turn_rate_dps: float,
+        inner_deadband_dps: float,
+        exit_dps: float,
+        state: Dict[str, bool],
+    ) -> float:
+        """Combined dual-band stiction snap + hysteresis with feather band.
+
+        Used at runtime (model playback in sim, real-robot ROS node) to give
+        the steering channel a 'feathering' region below `min_turn_rate_dps`
+        that is reachable only once a turn is already in progress. Removes
+        chatter without losing stiction protection on entry.
+
+        State machine:
+          not_turning:
+            |rate| <  inner_db                -> 0
+            inner_db <= |rate| < min          -> sign(rate) * min   (snap up + enter turning)
+            |rate| >= min                     -> rate               (passthrough + enter turning)
+          turning:
+            |rate| <  exit_dps                -> 0                  (drop out of turn)
+            exit_dps <= |rate|                -> rate               (feather + passthrough)
+
+        `exit_dps` should be < `min_turn_rate_dps`. If `min_turn_rate_dps`
+        is 0 the whole pipeline is a no-op.
+
+        `state` is a single-key dict {"was_turning": bool}, persisted across
+        ticks by the caller. Reset to False at episode start.
+        """
+        if min_turn_rate_dps <= 0.0:
+            return rate_dps
+        mag = abs(rate_dps)
+        if state.get("was_turning", False):
+            if mag < exit_dps:
+                state["was_turning"] = False
+                return 0.0
+            return rate_dps
+        # not currently turning
+        if mag < inner_deadband_dps or mag == 0.0:
+            return 0.0
+        state["was_turning"] = True
+        if mag < min_turn_rate_dps:
+            return math.copysign(min_turn_rate_dps, rate_dps)
+        return rate_dps
+
     def reset_random_pose(self, rng: Optional[np.random.Generator] = None) -> None:
         if rng is None:
             rng = np.random.default_rng()

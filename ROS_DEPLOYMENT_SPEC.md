@@ -118,16 +118,21 @@ Build the feature vector exactly as specified in
   `input_signals.past_action_slice_order` in the sidecar.
 - The final (current) entry gets no action appended.
 - `len(feature_vector) == input_dim == N*12 + (N-1)*A`.
-- Zero-pad the deque on the left at episode start (`whiskers=0.0`,
-  `heading=0.0`, `action=0.0`). Do **not** use `0.5` (max whisker length)
-  or any other padding value.
+- **Pad the deque on the left at episode start with copies of the first
+  real observation's state and a zero action** — see the runtime loop
+  below. Do **not** zero-fill the whiskers (`whiskers=0.0` would mean
+  "obstacle at distance 0 in every direction") and do **not** use `0.5`
+  (max whisker length, also out of distribution).
 
 Runtime loop:
 
 ```
-on startup:
-    load model.json, params.json
-    deque = [zero_entry] * (N - 1)
+on episode reset / startup:
+    load model.json, params.json (once)
+    read sensors -> initial_state = {whisker_lengths, heading_to_target}
+    pad_entry = {state: initial_state, action: zero_action}
+    deque = [pad_entry] * (N - 1)
+    deque.append({state: initial_state, action: zero_action})
     last_cmd = zero_action_for_mode
 
 each control tick (at log_rate_hz):
@@ -135,12 +140,12 @@ each control tick (at log_rate_hz):
     2. deque.append({state: current_state, action: last_cmd})
        if len(deque) > N: deque.popleft()
     3. feature_vector = flatten(deque)
-    4. y_phys = infer(feature_vector)        # MODEL_SPEC §5
+    4. y_phys = infer(feature_vector)              # MODEL_SPEC §5
     5. y_phys = clamp_to_saturation_limits(y_phys)
-    6. y_phys.rotation = apply_stiction(y_phys.rotation)   # §5 below
-    7. y_phys.rotation = apply_hysteresis(y_phys.rotation) # §6 below
-    8. publish_cmd(y_phys)
-    9. last_cmd = y_phys     # store the post-processed command
+    6. y_phys.rotation = apply_rotation_pipeline(  # §5 below
+           y_phys.rotation, min_dps, inner_db, exit_dps, state)
+    7. publish_cmd(y_phys)
+    8. last_cmd = y_phys                           # store post-processed command
 ```
 
 The action stored in `last_cmd` is the command **actually sent after all
@@ -166,76 +171,94 @@ Covered fully in [MODEL_SPEC.md §5](MODEL_SPEC.md). Key points:
 
 ---
 
-## 5. Stiction snap (rotation only)
+## 5. Steering pipeline — combined dual-band + hysteresis (rotation only)
 
-Apply after saturation clamp, before hysteresis.
+**Single function**, applied after the saturation clamp. Replaces the
+earlier-spec layout that ran a stateless dual-band snap *before* a
+separate hysteresis pass — that ordering is broken because the dual-band
+snaps every sub-min input up to ±min, leaving the feather band
+unreachable.
+
+The combined pipeline has two regimes selected by a one-bit
+`was_turning` state, seeded `False` on episode reset:
+
+```
+not_turning:                              | turning:
+  |rate| <  inner_db          -> 0        |   |rate| <  exit_dps         -> 0  (drop turn)
+  inner_db <= |rate| < min    -> ±min     |   |rate| >= exit_dps         -> rate (feather + passthrough)
+  |rate| >= min               -> rate     |
+  (any nonzero output sets was_turning)   |
+```
+
+So once a turn is established by crossing `min`, the rate is allowed to
+**feather down** to `exit_dps` without snapping back up. Below `exit_dps`,
+the turn is dropped. Stiction protection on entry remains: a fresh,
+sub-min command still snaps up to overcome static friction.
 
 ```python
-def apply_stiction(rate_dps, min_turn, inner_db):
-    if min_turn <= 0.0:
-        return rate_dps
+def apply_rotation_pipeline(rate_dps, min_dps, inner_db, exit_dps, state):
+    if min_dps <= 0.0:
+        return rate_dps                             # disabled
     mag = abs(rate_dps)
-    if mag == 0.0 or mag < inner_db:
+    if state.was_turning:
+        if mag < exit_dps:
+            state.was_turning = False
+            return 0.0
+        return rate_dps                             # feather or passthrough
+    # not turning
+    if mag < inner_db or mag == 0.0:
         return 0.0
-    if mag < min_turn:
-        return math.copysign(min_turn, rate_dps)
+    state.was_turning = True
+    if mag < min_dps:
+        return math.copysign(min_dps, rate_dps)
     return rate_dps
 ```
 
-Three-way snap, identical to the simulator's
-`Robot.apply_rotation_stiction` (`sim_core.py`). Parameters come from
-`params.stiction.{min_turn_rate_dps, inner_deadband_dps}`.
+This matches `Robot.apply_rotation_pipeline` in `sim_core.py` exactly —
+the simulator runs the same function in model-driven episodes, so what
+you see in the sim is what you get on the real robot.
 
-Only applied to rotation. Translational speeds (`drive_speed`, `vx`,
-`vy`) are not typically stiction-limited on brushless or geared
-platforms; if yours is, add a symmetric helper keyed off a separate
-param field.
+### Parameters
 
----
+All four come from the params sidecar:
 
-## 6. Hysteresis (rotation only, runtime-only)
+| Field | Source | Default if 0 |
+|---|---|---|
+| `min_dps` | `params.stiction.min_turn_rate_dps` | feature disabled |
+| `inner_db` | `params.stiction.inner_deadband_dps` | 0 (no deep dead zone) |
+| `exit_dps` | `params.recommended_hysteresis.rotation_rate_exit_dps` | `0.6 × min_dps` |
+| (informational) | `params.recommended_hysteresis.hysteresis_band_dps` | derived = `min - exit` |
 
-**Purpose**: the stiction snap creates a sharp transition at
-`min_turn_rate_dps`. Model outputs that hover near that boundary
-(e.g. oscillating between 28 and 32 deg/s) would cause the motor to
-repeatedly engage and disengage — audible chatter, mechanical wear, and
-a jittery heading trace. Hysteresis fixes this by widening the
-dead-zone on exit.
+`exit_dps` MUST be `< min_dps` and `> 0`. A reasonable feather window is
+`min - exit` somewhere in `[0.10 × min, 0.50 × min]` — i.e., 10–50% of
+the min turn rate. Too narrow → chatter returns. Too wide → the robot
+coasts on an unwanted rotation past the goal heading.
 
-Keep one bit of state per control tick: `was_turning: bool`, seeded
-`False`.
+### State management
 
-```python
-def apply_hysteresis(rate_dps, params, state):
-    enter = params["rotation_rate_enter_dps"]   # from params.recommended_hysteresis
-    exit_ = params["rotation_rate_exit_dps"]
-    if enter is None or exit_ is None:
-        return rate_dps                         # hysteresis disabled
+- `was_turning` is **per-axis** (just rotation here, but if you add the
+  same pipeline to translation channels it needs its own bit).
+- Reset to `False` on every episode start, scenario change, or any time
+  the policy is paused/resumed.
+- Persist the bit across control ticks; it's the only stateful element
+  in the inference path.
 
-    mag = abs(rate_dps)
-    if state.was_turning:
-        if mag < exit_:
-            state.was_turning = False
-            return 0.0
-        return rate_dps
-    else:
-        if mag >= enter:
-            state.was_turning = True
-            return rate_dps
-        return 0.0
-```
+### Why this stays out of training data
 
-Defaults (from sidecar): `enter = min_turn_rate_dps`,
-`exit = 0.6 × min_turn_rate_dps`. Tune `exit` empirically on the real
-robot. A common failure mode: `exit` set too close to `enter` → chatter;
-set too low → the robot coasts on an unwanted rotation. A 40% gap is a
-reasonable starting point.
+The training pipeline (in the simulator, when a human pilots with
+keyboard or gamepad) applies only the **stateless** dual-band snap, not
+this combined pipeline. The reason: hysteresis introduces a hidden
+dependence on the prior command, but the model's input vector has no
+"was_turning" feature. If we let the bit influence labels, the model
+would have to guess at hidden state from current observations alone —
+worse than just letting it emit raw rates and post-processing at
+runtime. Apply this combined pipeline only at deployment (and for
+model-driven preview in the simulator).
 
-**Important**: hysteresis is stateful and runtime-only. The training
-data was not collected with hysteresis applied. Do not attempt to
-replicate this logic in the simulator's training pipeline — it would
-introduce a hidden dependence on prior commands that the model has no
-way to observe through its input vector.
+Translation speeds (`drive_speed`, `vx`, `vy`) are not stiction-shaped
+in the current pipeline; brushless and well-geared brushed platforms
+typically don't need it. If yours does, add a symmetric pipeline keyed
+off separate sidecar fields.
 
 ---
 
@@ -264,12 +287,16 @@ motor driver uses a different convention (e.g. +z = CW), invert
 - [ ] `params.memory_steps == (model.input_dim + A) / (12 + A)` for the
   mode's action dim `A`. If not, the files don't match.
 - [ ] Control loop ticks at `params.log_rate_hz`.
-- [ ] History deque pre-seeded with `(memory_steps − 1)` zero entries.
+- [ ] History deque pre-seeded with `(memory_steps − 1)` **copies of the first real observation's state with zero action** — NOT literal whiskers=0 (which would mean "obstacles everywhere").
 - [ ] `last_cmd` initialized to zero action for the mode.
 - [ ] Inference output treated as physical units (no `tanh`, no rescale).
 - [ ] Activation string read from model blob, not hardcoded.
-- [ ] Saturation clamp applied first, then stiction snap, then
-  hysteresis, then publish.
+- [ ] Saturation clamp applied first, then the **single combined**
+  `apply_rotation_pipeline` (§5), then publish. Do NOT chain a separate
+  stiction snap and hysteresis pass — the dual-band snap would prevent
+  the feather band from ever being reached.
+- [ ] `was_turning` state initialized False; reset to False on every
+  episode start.
 - [ ] `last_cmd` stores the **post-processed** command.
 - [ ] All sign conventions cross-checked against
   `params.sign_conventions` — especially `heading_to_target` input sign.
