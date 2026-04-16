@@ -20,6 +20,7 @@ from sim_core import (
     Robot,
     generate_obstacles,
     generate_target,
+    generate_target_against_wall,
     generate_target_bbox_pose,
 )
 
@@ -135,15 +136,21 @@ class SimulatorApp:
         self.dagger_session_active = False
 
         self.prefs_open = False
-        self.vis_mode = "action_radius"  # "all" | "action_radius" | "detected" | "sparse_sensing"
+        self.vis_mode = "all"  # "all" | "action_radius" | "detected" | "sparse_sensing"
+        self.place_against_wall = False
         self.obstacle_detected_timers: Dict[int, float] = {}
         self.sparse_detection_points: List[Dict[str, float]] = []
 
         self._recompute_layout()
 
         self._prefs_path = Path(__file__).resolve().parent / "simulator_prefs.json"
+        prefs_existed = self._prefs_path.exists()
         self._load_prefs()
         self._last_saved_prefs = self._prefs_snapshot()
+        if not prefs_existed:
+            # Seed a defaults file so first launches leave a tracked config on disk.
+            self._last_saved_prefs = None
+            self._save_prefs_if_changed()
 
         self.new_episode()
 
@@ -160,6 +167,7 @@ class SimulatorApp:
             "logging_enabled": bool(self.logging_enabled),
             "robot_aligned_view": bool(self.robot_aligned_view),
             "control_mode": str(self.robot.control_mode),
+            "place_against_wall": bool(self.place_against_wall),
         }
 
     def _load_prefs(self) -> None:
@@ -226,6 +234,8 @@ class SimulatorApp:
         if cm in ("heading_drive", "xy_strafe", "heading_strafe"):
             self.robot.set_control_mode(cm)
             self.prev_control_mode = cm
+        if "place_against_wall" in data:
+            self.place_against_wall = bool(data.get("place_against_wall"))
 
     def _save_prefs_if_changed(self) -> None:
         current = self._prefs_snapshot()
@@ -319,6 +329,8 @@ class SimulatorApp:
         self.prefs_vis_radius_rect = pygame.Rect(lx + 10, row5, 18, 18)
         self.prefs_vis_detect_rect = pygame.Rect(lx + 10, row6, 18, 18)
         self.prefs_vis_sparse_rect = pygame.Rect(lx + 10, row7, 18, 18)
+        row8 = py + 485
+        self.prefs_place_wall_rect = pygame.Rect(lx + 10, row8, 18, 18)
 
     def _mode_output_desc(self, mode: str) -> str:
         if mode == "heading_drive":
@@ -364,6 +376,7 @@ class SimulatorApp:
                 (self.prefs_vis_radius_rect, "Show within action radius: render only obstacles within whisker reach"),
                 (self.prefs_vis_detect_rect, "Show when detected: obstacle appears when whisker hits it; fades after history_len / rate_hz seconds"),
                 (self.prefs_vis_sparse_rect, "Sparse Sensing: render only whisker-detected world points with fading memory"),
+                (self.prefs_place_wall_rect, "Place Object Against Wall: target spawns on a wall (>=0.5m from corners), training approaches where whiskers see a wall but one whisker is actually on the target"),
             ]
             for rect, text in prefs_tips:
                 if rect.collidepoint(pos):
@@ -516,14 +529,24 @@ class SimulatorApp:
     def _spawn_target(self, obstacles: List[Tuple[float, float, float]]) -> Optional[Tuple[float, float, float]]:
         obstacle_dicts = [{"x": ox, "y": oy, "radius": orad} for ox, oy, orad in obstacles]
         robot_pose = {"x": self.robot.x, "y": self.robot.y, "heading": self.robot.heading_deg}
-        tgt = generate_target(
-            rng=self.rng,
-            room_w=ROOM_WIDTH,
-            room_h=ROOM_HEIGHT,
-            obstacles=obstacle_dicts,
-            robot_pose=robot_pose,
-            target_r=0.075,
-        )
+        if self.place_against_wall:
+            tgt = generate_target_against_wall(
+                rng=self.rng,
+                room_w=ROOM_WIDTH,
+                room_h=ROOM_HEIGHT,
+                obstacles=obstacle_dicts,
+                robot_pose=robot_pose,
+                target_r=0.075,
+            )
+        else:
+            tgt = generate_target(
+                rng=self.rng,
+                room_w=ROOM_WIDTH,
+                room_h=ROOM_HEIGHT,
+                obstacles=obstacle_dicts,
+                robot_pose=robot_pose,
+                target_r=0.075,
+            )
         return float(tgt["x"]), float(tgt["y"]), float(tgt["radius"])
 
     def new_episode(self) -> None:
@@ -702,6 +725,13 @@ class SimulatorApp:
             return 10.0 / max(0.1, self.active_log_rate_hz)
         return None
 
+    def _any_whisker_hit(self) -> bool:
+        """True if any whisker is currently hitting something (obstacle/wall/target)."""
+        for _s, _e, hit in self.whisker_segments:
+            if hit:
+                return True
+        return False
+
     def _current_sparse_interval(self) -> Optional[float]:
         """Tick interval for sparse-sensing ghost points.
 
@@ -709,11 +739,13 @@ class SimulatorApp:
         space) but is gated on the operator having active control input rather
         than on logging_enabled — so traces decay only while the user is
         driving, regardless of whether samples are being written to disk.
+
+        "Active" here is any live whisker contact — obstacle, wall, or target —
+        so wall hits trigger fast cadence and the white dot appears promptly.
         """
         if not self._has_nonzero_input():
             return None
-        obstacle_near = self._obstacle_within_action_radius()
-        if obstacle_near:
+        if self._any_whisker_hit():
             return 1.0 / max(0.1, self.active_log_rate_hz)
         return 10.0 / max(0.1, self.active_log_rate_hz)
 
@@ -825,6 +857,7 @@ class SimulatorApp:
             self.loaded_model_mode = None
             self.model_status = f"No {suffix} model"
             return False
+
 
         model_path = model_files[-1]
         return self._load_model_from_file(model_path, mode)
@@ -973,6 +1006,10 @@ class SimulatorApp:
             )
             self.robot.update_heading_to_target(self.target)
             self.prev_control_mode = self.robot.control_mode
+            # Snapshot loads are episode-boundary events; purge any ghost
+            # points from the prior case so the new scene renders clean.
+            self.sparse_detection_points.clear()
+            self.obstacle_detected_timers.clear()
             return True
         except Exception:
             return False
@@ -1358,6 +1395,9 @@ class SimulatorApp:
             if self.prefs_vis_sparse_rect.collidepoint(pos):
                 self.vis_mode = "sparse_sensing"
                 return
+            if self.prefs_place_wall_rect.collidepoint(pos):
+                self.place_against_wall = not self.place_against_wall
+                return
             return  # Swallow remaining clicks inside panel
 
         if self.prefs_button_rect.collidepoint(pos):
@@ -1727,6 +1767,11 @@ class SimulatorApp:
         self._draw_radio(self.prefs_vis_radius_rect, self.vis_mode == "action_radius", "Show within action radius")
         self._draw_radio(self.prefs_vis_detect_rect, self.vis_mode == "detected", "Show when detected (memory)")
         self._draw_radio(self.prefs_vis_sparse_rect, self.vis_mode == "sparse_sensing", "Sparse Sensing")
+        # ---- Episode generation section ----
+        ep_label_y = self.prefs_place_wall_rect.top - 35
+        self._render_text("Episode Generation", lx, ep_label_y, small=True)
+        pygame.draw.line(self.screen, (180, 180, 185), (lx, ep_label_y + 20), (self.prefs_rect.right - 24, ep_label_y + 20), 1)
+        self._draw_checkbox(self.prefs_place_wall_rect, self.place_against_wall, "Place Object Against Wall")
 
     def _draw_panel(self) -> None:
         pygame.draw.rect(self.screen, self.PANEL_COLOR, self.panel_rect)
@@ -1877,6 +1922,12 @@ class SimulatorApp:
                 if self.logging_enabled and self.in_memory_log:
                     self._write_log_to_file()
                 self.in_memory_log = []
+                # Clear sparse/detection state so dots don't persist into the
+                # next case. new_episode() also clears these, but the train_me
+                # branch below loads a snapshot instead and would otherwise
+                # inherit stale points.
+                self.sparse_detection_points.clear()
+                self.obstacle_detected_timers.clear()
                 if self.active_train_me_case_seq is not None and self.train_me_queue:
                     self._run_next_train_me_case()
                 else:

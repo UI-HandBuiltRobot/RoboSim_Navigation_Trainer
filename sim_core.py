@@ -185,6 +185,53 @@ def generate_target(
     return {"x": 0.5 * room_w, "y": 0.5 * room_h, "radius": target_r}
 
 
+def generate_target_against_wall(
+    rng: np.random.Generator,
+    room_w: float,
+    room_h: float,
+    obstacles: List[Dict[str, float]],
+    robot_pose: Dict[str, float],
+    target_r: float = 0.075,
+    corner_clearance_m: float = 0.50,
+) -> Dict[str, float]:
+    """Place the target's center on a random wall plane, avoiding corners.
+
+    Trains approaches where an object is up against a wall: all collision
+    whiskers register an obstacle ahead, but one of them is actually the target.
+    """
+    for _ in range(3000):
+        wall = int(rng.integers(0, 4))
+        if wall == 0:  # bottom
+            tx = float(rng.uniform(corner_clearance_m, room_w - corner_clearance_m))
+            ty = 0.0
+        elif wall == 1:  # top
+            tx = float(rng.uniform(corner_clearance_m, room_w - corner_clearance_m))
+            ty = float(room_h)
+        elif wall == 2:  # left
+            tx = 0.0
+            ty = float(rng.uniform(corner_clearance_m, room_h - corner_clearance_m))
+        else:  # right
+            tx = float(room_w)
+            ty = float(rng.uniform(corner_clearance_m, room_h - corner_clearance_m))
+
+        ok = True
+        for ob in obstacles:
+            d = math.hypot(tx - float(ob["x"]), ty - float(ob["y"]))
+            if d < target_r + float(ob["radius"]) + 0.30:
+                ok = False
+                break
+        if not ok:
+            continue
+
+        dr = math.hypot(tx - float(robot_pose["x"]), ty - float(robot_pose["y"]))
+        if dr < 0.50 + target_r:
+            continue
+
+        return {"x": tx, "y": ty, "radius": target_r}
+
+    return {"x": 0.5 * room_w, "y": 0.0, "radius": target_r}
+
+
 class Robot:
     """Shared robot dynamics and sensing model."""
 

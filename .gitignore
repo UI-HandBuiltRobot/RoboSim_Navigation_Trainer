@@ -2,6 +2,7 @@
 logs/
 dagger_snapshots/
 trained_models/
+simulator_prefs.json
 
 # Python cache
 __pycache__/
