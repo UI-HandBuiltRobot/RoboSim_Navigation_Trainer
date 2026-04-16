@@ -21,7 +21,7 @@ from tkinter import filedialog, messagebox, ttk
 from headless_sim import HeadlessSimulator
 from sim_core import Robot
 
-_STATE_DIM = 12
+_STATE_DIM = 23
 
 
 @dataclass
@@ -50,10 +50,13 @@ def _load_il_blob(model_path: Path) -> Dict[str, Any]:
     with open(model_path, "r", encoding="utf-8") as f:
         blob = json.load(f)
 
-    required = ["weights", "biases", "x_mean", "x_std", "y_mean", "y_std"]
+    required = ["weights", "biases", "x_scale", "y_scale"]
     missing = [k for k in required if k not in blob]
     if missing:
-        raise ValueError(f"IL model missing keys: {missing}")
+        raise ValueError(
+            f"IL model missing keys: {missing}. Expected saturation-normalised model; "
+            f"retrain with current train_mlp."
+        )
 
     weights = [np.asarray(w, dtype=np.float64) for w in blob["weights"]]
     biases = [np.asarray(b, dtype=np.float64) for b in blob["biases"]]
@@ -61,10 +64,8 @@ def _load_il_blob(model_path: Path) -> Dict[str, Any]:
     return {
         "weights": weights,
         "biases": biases,
-        "x_mean": np.asarray(blob["x_mean"], dtype=np.float64),
-        "x_std": np.asarray(blob["x_std"], dtype=np.float64),
-        "y_mean": np.asarray(blob["y_mean"], dtype=np.float64),
-        "y_std": np.asarray(blob["y_std"], dtype=np.float64),
+        "x_scale": np.asarray(blob["x_scale"], dtype=np.float64),
+        "y_scale": np.asarray(blob["y_scale"], dtype=np.float64),
         "input_dim": int(blob.get("input_dim", weights[0].shape[0])),
         "output_dim": int(blob.get("output_dim", weights[-1].shape[1])),
         "mode": str(blob.get("mode", "heading_drive")),
@@ -85,15 +86,13 @@ def load_model_with_inferred_history(model_path: Path, fallback_mode: str) -> Lo
 
 
 def _predict_il_physical(il_blob: Dict[str, Any], obs_row: np.ndarray) -> np.ndarray:
-    x_mean = il_blob["x_mean"]
-    x_std = np.where(np.abs(il_blob["x_std"]) < 1e-6, 1.0, il_blob["x_std"])
-    y_mean = il_blob["y_mean"]
-    y_std = np.where(np.abs(il_blob["y_std"]) < 1e-6, 1.0, il_blob["y_std"])
+    x_scale = np.where(np.abs(il_blob["x_scale"]) < 1e-6, 1.0, il_blob["x_scale"])
+    y_scale = np.where(np.abs(il_blob["y_scale"]) < 1e-6, 1.0, il_blob["y_scale"])
     weights = il_blob["weights"]
     biases = il_blob["biases"]
     activation = str(il_blob.get("activation", "relu")).lower()
 
-    a = (obs_row - x_mean) / x_std
+    a = obs_row / x_scale
     for i in range(len(weights) - 1):
         z = a @ weights[i] + biases[i]
         if activation == "tanh":
@@ -103,7 +102,7 @@ def _predict_il_physical(il_blob: Dict[str, Any], obs_row: np.ndarray) -> np.nda
         else:
             a = np.maximum(0.0, z)
     out_norm = a @ weights[-1] + biases[-1]
-    return (out_norm * y_std + y_mean).reshape(-1)
+    return (out_norm * y_scale).reshape(-1)
 
 
 def _to_env_normalized_action(mode: str, model: LoadedModel, output: np.ndarray) -> np.ndarray:

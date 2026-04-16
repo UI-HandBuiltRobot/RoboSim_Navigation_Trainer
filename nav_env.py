@@ -25,7 +25,7 @@ class NavigationEnv(gym.Env):
         self.history_window = int(self.config.get("history_window", 5))
         control_mode = str(self.config.get("control_mode", "heading_drive"))
         _n_action = {"heading_drive": 2, "xy_strafe": 2, "heading_strafe": 3}.get(control_mode, 2)
-        obs_dim = 12 * self.history_window + _n_action * (self.history_window - 1)
+        obs_dim = 23 * self.history_window + _n_action * (self.history_window - 1)
         # Bounds are wide because observations are raw (un-normalised) physical values.
         self.observation_space = spaces.Box(
             low=-np.inf, high=np.inf, shape=(obs_dim,), dtype=np.float32

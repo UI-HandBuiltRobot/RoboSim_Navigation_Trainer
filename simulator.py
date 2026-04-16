@@ -20,6 +20,7 @@ from sim_core import (
     Robot,
     generate_obstacles,
     generate_target,
+    generate_target_bbox_pose,
 )
 
 try:
@@ -91,6 +92,7 @@ class SimulatorApp:
         self.prev_control_mode = self.robot.control_mode
         self.obstacles: List[Tuple[float, float, float]] = []
         self.target: Optional[Tuple[float, float, float]] = None
+        self.target_bbox_pose: Dict[str, float] = {"rotation_rad": 0.0, "offset_x": 0.0, "offset_y": 0.0}
         self.whisker_segments: List[Tuple[Vec2, Vec2, bool]] = []
         self.collision_display_timer = 0.0
 
@@ -527,7 +529,11 @@ class SimulatorApp:
     def new_episode(self) -> None:
         self.active_train_me_case_seq = None
         self.obstacle_detected_timers = {}
+        self.sparse_detection_points.clear()
         self.robot.reset_random_pose(self.rng)
+        self.robot.collision_flag = False
+        self.robot.target_contact_flag = False
+        self.robot.collision_source = None
         self.collision_display_timer = 0.0
         self.in_memory_log = []
         self.log_timer = 0.0
@@ -548,8 +554,11 @@ class SimulatorApp:
         else:
             self.obstacles = self._spawn_obstacles(n_obs)
             self.target = self._spawn_target(self.obstacles)
-        
-        self.whisker_segments = self.robot.compute_whiskers(self.obstacles)
+
+        self.target_bbox_pose = generate_target_bbox_pose(self.rng)
+        self.whisker_segments = self.robot.compute_whiskers(
+            self.obstacles, target=self.target, target_bbox_pose=self.target_bbox_pose
+        )
         self.robot.update_heading_to_target(self.target)
         self.prev_control_mode = self.robot.control_mode
 
@@ -602,11 +611,6 @@ class SimulatorApp:
         dist = math.hypot(self.robot.x - tx, self.robot.y - ty)
         return dist <= self.GOAL_REACH_RADIUS_M
     
-    def check_whisker_collision(self) -> bool:
-        """Check if any whisker is shorter than 100mm."""
-        WHISKER_COLLISION_THRESHOLD_M = 0.10
-        return any(length < WHISKER_COLLISION_THRESHOLD_M for length in self.robot.whisker_lengths)
-
     def _has_nonzero_input(self) -> bool:
         """Check if user has non-zero control input."""
         cmd = self.robot.drive_command
@@ -753,6 +757,7 @@ class SimulatorApp:
         return {
             "mode": mode,
             "whisker_lengths": [float(v) for v in self.robot.whisker_lengths],
+            "target_bbox_lengths": [float(v) for v in self.robot.target_bbox_lengths],
             "heading_to_target": float(self.robot.heading_to_target_deg),
             "action": action,
         }
@@ -763,13 +768,18 @@ class SimulatorApp:
         Avoids the 'all whiskers reading zero = obstacles everywhere' artifact
         of literal zero-padding."""
         action_keys = self._command_keys_for_mode(mode)
+        default_lens = [Robot.WHISKER_MAX_LEN_M for _ in Robot.WHISKER_ANGLES_DEG]
         whiskers_src = source.get("whisker_lengths") if isinstance(source, dict) else None
         if not isinstance(whiskers_src, (list, tuple)):
-            whiskers_src = [Robot.WHISKER_MAX_LEN_M for _ in Robot.WHISKER_ANGLES_DEG]
+            whiskers_src = default_lens
+        bbox_src = source.get("target_bbox_lengths") if isinstance(source, dict) else None
+        if not isinstance(bbox_src, (list, tuple)):
+            bbox_src = default_lens
         heading_src = source.get("heading_to_target", 0.0) if isinstance(source, dict) else 0.0
         return {
             "mode": mode,
             "whisker_lengths": [float(v) for v in whiskers_src],
+            "target_bbox_lengths": [float(v) for v in bbox_src],
             "heading_to_target": float(heading_src),
             "action": {k: 0.0 for k in action_keys},
         }
@@ -840,13 +850,20 @@ class SimulatorApp:
             weights = [np.asarray(w, dtype=np.float64) for w in blob["weights"]]
             biases = [np.asarray(b, dtype=np.float64) for b in blob["biases"]]
 
+            if "x_scale" not in blob or "y_scale" not in blob:
+                self.loaded_model = None
+                self.loaded_model_mode = None
+                self.model_status = (
+                    f"Incompatible model {model_path.name}: expected saturation "
+                    f"normalisation (x_scale / y_scale). Retrain with current train_mlp."
+                )
+                return False
+
             self.loaded_model = {
                 "weights": weights,
                 "biases": biases,
-                "x_mean": np.asarray(blob["x_mean"], dtype=np.float64),
-                "x_std": np.asarray(blob["x_std"], dtype=np.float64),
-                "y_mean": np.asarray(blob["y_mean"], dtype=np.float64),
-                "y_std": np.asarray(blob["y_std"], dtype=np.float64),
+                "x_scale": np.asarray(blob["x_scale"], dtype=np.float64),
+                "y_scale": np.asarray(blob["y_scale"], dtype=np.float64),
                 "input_dim": int(blob.get("input_dim", weights[0].shape[0])),
                 "activation": str(blob.get("activation", "relu")),
             }
@@ -904,6 +921,7 @@ class SimulatorApp:
                 "heading": self.robot.heading_deg,
             },
             "target": self.target,
+            "target_bbox_pose": dict(self.target_bbox_pose),
             "obstacles": self.obstacles,
             "obstacle_count": self.obstacle_count,
         }
@@ -931,6 +949,8 @@ class SimulatorApp:
             self.robot.y = float(robot_pose["y"])
             self.robot.heading_deg = float(robot_pose["heading"])
             self.robot.collision_flag = False
+            self.robot.target_contact_flag = False
+            self.robot.collision_source = None
             self.robot.collision_flash_timer = 0.0
 
             self.obstacles = [tuple(ob) for ob in snap.get("obstacles", [])]
@@ -938,7 +958,19 @@ class SimulatorApp:
             self.target = tuple(tgt) if tgt is not None else None
             self.obstacle_count = int(snap.get("obstacle_count", self.obstacle_count))
 
-            self.whisker_segments = self.robot.compute_whiskers(self.obstacles)
+            bbox = snap.get("target_bbox_pose")
+            if isinstance(bbox, dict):
+                self.target_bbox_pose = {
+                    "rotation_rad": float(bbox.get("rotation_rad", 0.0)),
+                    "offset_x": float(bbox.get("offset_x", 0.0)),
+                    "offset_y": float(bbox.get("offset_y", 0.0)),
+                }
+            else:
+                self.target_bbox_pose = generate_target_bbox_pose(self.rng)
+
+            self.whisker_segments = self.robot.compute_whiskers(
+                self.obstacles, target=self.target, target_bbox_pose=self.target_bbox_pose
+            )
             self.robot.update_heading_to_target(self.target)
             self.prev_control_mode = self.robot.control_mode
             return True
@@ -1180,18 +1212,20 @@ class SimulatorApp:
         self._enqueue_train_me_case("FAIL")
 
     def _predict_model_output(self, features: np.ndarray) -> Optional[np.ndarray]:
-        """Run IL (NumPy MLP) forward pass."""
+        """Run IL (NumPy MLP) forward pass with saturation denormalisation."""
         if self.loaded_model is None:
             return None
-        x_mean = self.loaded_model["x_mean"]
-        x_std = np.where(np.abs(self.loaded_model["x_std"]) < 1e-6, 1.0, self.loaded_model["x_std"])
-        y_mean = self.loaded_model["y_mean"]
-        y_std = np.where(np.abs(self.loaded_model["y_std"]) < 1e-6, 1.0, self.loaded_model["y_std"])
+        x_scale = np.where(
+            np.abs(self.loaded_model["x_scale"]) < 1e-6, 1.0, self.loaded_model["x_scale"]
+        )
+        y_scale = np.where(
+            np.abs(self.loaded_model["y_scale"]) < 1e-6, 1.0, self.loaded_model["y_scale"]
+        )
         weights = self.loaded_model["weights"]
         biases = self.loaded_model["biases"]
         activation = str(self.loaded_model.get("activation", "relu")).lower()
 
-        a = (features - x_mean) / x_std
+        a = features / x_scale
         for i in range(len(weights) - 1):
             z = a @ weights[i] + biases[i]
             if activation == "tanh":
@@ -1201,7 +1235,7 @@ class SimulatorApp:
             else:
                 a = np.maximum(0.0, z)
         out_norm = a @ weights[-1] + biases[-1]
-        return out_norm * y_std + y_mean
+        return out_norm * y_scale
 
     def _update_command_from_model(self) -> None:
         """Compute drive commands from loaded model and current sensor state."""
@@ -1217,7 +1251,7 @@ class SimulatorApp:
         mode = self.robot.control_mode
         action_keys = self._command_keys_for_mode(mode)
         n_action = len(action_keys)
-        state_dim = 12  # 11 whiskers + heading_to_target
+        state_dim = 23  # 11 whiskers + 11 target-bbox whiskers + heading_to_target
 
         # IL: use input_dim from model metadata
         input_dim = self.loaded_model["input_dim"]
@@ -1234,9 +1268,14 @@ class SimulatorApp:
                 history.insert(0, self._state_pad_record(mode, pad_source))
 
         # Flatten: each step contributes state; all but the last also contribute action
+        default_lens = [Robot.WHISKER_MAX_LEN_M for _ in Robot.WHISKER_ANGLES_DEG]
         feat: List[float] = []
         for i, step in enumerate(history):
-            feat.extend([float(v) for v in step["whisker_lengths"]] + [float(step["heading_to_target"])])
+            whiskers = step.get("whisker_lengths", default_lens)
+            bbox_lens = step.get("target_bbox_lengths", default_lens)
+            feat.extend([float(v) for v in whiskers])
+            feat.extend([float(v) for v in bbox_lens])
+            feat.append(float(step["heading_to_target"]))
             if i < history_len - 1:
                 action_map = step.get("action", {})
                 for k in action_keys:
@@ -1493,6 +1532,23 @@ class SimulatorApp:
             center_px = self.world_to_screen(tx, ty)
             pygame.draw.circle(self.screen, self.TARGET_COLOR, center_px, max(2, int(tr * self.px_per_meter)))
 
+            # Draw the simulated CV bbox around the target: side = 2*tr,
+            # rotated by target_bbox_pose["rotation_rad"], offset by
+            # (offset_x, offset_y). Visualises the noise the policy is
+            # fusing via the target_bbox_lengths channel.
+            bx = tx + float(self.target_bbox_pose.get("offset_x", 0.0))
+            by = ty + float(self.target_bbox_pose.get("offset_y", 0.0))
+            rot = float(self.target_bbox_pose.get("rotation_rad", 0.0))
+            cos_r = math.cos(rot)
+            sin_r = math.sin(rot)
+            corners_world = []
+            for lx, ly in ((tr, tr), (-tr, tr), (-tr, -tr), (tr, -tr)):
+                wx = bx + cos_r * lx - sin_r * ly
+                wy = by + sin_r * lx + cos_r * ly
+                corners_world.append((wx, wy))
+            corners_px = [self.world_to_screen(wx, wy) for wx, wy in corners_world]
+            pygame.draw.polygon(self.screen, self.TARGET_COLOR, corners_px, 1)
+
         for p0, p1, hit in self.whisker_segments:
             c = self.WHISKER_HIT_COLOR if hit else self.WHISKER_FREE_COLOR
             pygame.draw.line(
@@ -1724,12 +1780,22 @@ class SimulatorApp:
                 small=True,
             )
 
-        self._render_text("Whisker Lengths (m)", self.panel_rect.left + 22, self.panel_rect.top + 164, small=True)
+        self._render_text(
+            "Whisker Lengths (m)     any     bbox",
+            self.panel_rect.left + 22,
+            self.panel_rect.top + 164,
+            small=True,
+        )
         y = self.panel_rect.top + 186
         for i, length in enumerate(self.robot.whisker_lengths):
             angle = Robot.WHISKER_ANGLES_DEG[i]
+            bbox_len = (
+                self.robot.target_bbox_lengths[i]
+                if i < len(self.robot.target_bbox_lengths)
+                else Robot.WHISKER_MAX_LEN_M
+            )
             self._render_text(
-                f"{angle:>4} deg: {length:.3f}",
+                f"{angle:>4} deg:    {length:.3f}   {bbox_len:.3f}",
                 self.panel_rect.left + 22,
                 y,
                 small=True,
@@ -1775,7 +1841,9 @@ class SimulatorApp:
                     self._handle_click(event.pos)
 
             self.update_robot_command()
-            self.whisker_segments = self.robot.step(dt, self.obstacles)
+            self.whisker_segments = self.robot.step(
+                dt, self.obstacles, target=self.target, target_bbox_pose=self.target_bbox_pose
+            )
             self.robot.update_heading_to_target(self.target)
             self._update_obstacle_detection(dt)
 
@@ -1799,7 +1867,12 @@ class SimulatorApp:
                     self.sparse_tick_timer = 0.0
                     self._update_sparse_detection_points()
             
-            if self.check_goal_reached():
+            # Success trigger: either the centre-distance goal radius has been
+            # crossed, OR the robot body has physically overlapped the target
+            # (target_contact_flag). The second clause catches the case where
+            # an obstacle near the target fires collision_flag on the same
+            # tick the robot touches the target — target contact wins.
+            if self.check_goal_reached() or self.robot.target_contact_flag:
                 # Goal reached: write log if present
                 if self.logging_enabled and self.in_memory_log:
                     self._write_log_to_file()
@@ -1809,8 +1882,8 @@ class SimulatorApp:
                 else:
                     self._finish_dagger_session_if_empty()
                     self.new_episode()
-            elif self.robot.collision_flag or self.check_whisker_collision():
-                print("COLLISION")
+            elif self.robot.collision_flag:
+                print(f"COLLISION source={self.robot.collision_source}")
                 self.sparse_detection_points.clear()
                 if self.input_mode == "model":
                     self._enqueue_train_me_case("collision")

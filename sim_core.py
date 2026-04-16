@@ -23,6 +23,22 @@ WHISKER_ANGLES = [-90, -60, -45, -30, -15, 0, 15, 30, 45, 60, 90]
 WHISKER_MAX_LENGTH = 0.50
 TARGET_REACH_RADIUS = 0.25
 
+# Simulated CV-bbox offset envelope, per axis, in metres. Each episode the
+# target's circumscribing square is translated by a uniform draw from
+# [-TARGET_BBOX_OFFSET_MAX_M, +TARGET_BBOX_OFFSET_MAX_M] on x and y, and
+# rotated by a uniform draw from [0, 2π). Models the CV pipeline's bbox slop
+# so the policy learns to fuse "whisker range" with "whisker-vs-bbox range".
+TARGET_BBOX_OFFSET_MAX_M = 0.025
+
+
+def generate_target_bbox_pose(rng: np.random.Generator) -> Dict[str, float]:
+    """Sample a per-episode bbox pose (rotation + xy offset) for the target."""
+    return {
+        "rotation_rad": float(rng.uniform(0.0, 2.0 * math.pi)),
+        "offset_x": float(rng.uniform(-TARGET_BBOX_OFFSET_MAX_M, TARGET_BBOX_OFFSET_MAX_M)),
+        "offset_y": float(rng.uniform(-TARGET_BBOX_OFFSET_MAX_M, TARGET_BBOX_OFFSET_MAX_M)),
+    }
+
 
 def randomize_robot_pose(
     rng: np.random.Generator,
@@ -198,9 +214,14 @@ class Robot:
         self.drive_command: Dict[str, float] = {"rotation_rate": 0.0, "drive_speed": 0.0}
 
         self.whisker_lengths: List[float] = [self.WHISKER_MAX_LEN_M for _ in self.WHISKER_ANGLES_DEG]
+        self.target_bbox_lengths: List[float] = [self.WHISKER_MAX_LEN_M for _ in self.WHISKER_ANGLES_DEG]
         self.robot_pose: Dict[str, float] = {"x": 0.0, "y": 0.0, "heading": 0.0}
         self.heading_to_target_deg = 0.0
         self.collision_flag = False
+        self.target_contact_flag = False
+        # "wall" | "obstacle" | "target" | None. Set by check_collision alongside
+        # collision_flag / target_contact_flag so callers can categorise by source.
+        self.collision_source: Optional[str] = None
 
         self.collision_flash_timer = 0.0
         self.collision_radius = 0.5 * math.hypot(self.BODY_WIDTH_M, self.BODY_LENGTH_M)
@@ -314,8 +335,11 @@ class Robot:
             self.drive_command = {"vx": 0.0, "vy": 0.0}
 
         self.whisker_lengths = [self.WHISKER_MAX_LEN_M for _ in self.WHISKER_ANGLES_DEG]
+        self.target_bbox_lengths = [self.WHISKER_MAX_LEN_M for _ in self.WHISKER_ANGLES_DEG]
         self.robot_pose = {"x": self.x, "y": self.y, "heading": self.heading_deg}
         self.collision_flag = False
+        self.target_contact_flag = False
+        self.collision_source = None
         self.collision_flash_timer = 0.0
 
     def compute_heading_to_target(self, target_x: float, target_y: float) -> float:
@@ -506,11 +530,58 @@ class Robot:
             return float(t)
         return None
 
-    def compute_whiskers(self, obstacles: List[Tuple[float, float, float]]) -> List[Tuple[Vec2, Vec2, bool]]:
+    @staticmethod
+    def _ray_obb_intersection(
+        origin: Vec2,
+        direction: Vec2,
+        center: Vec2,
+        half_extents: Tuple[float, float],
+        rotation_rad: float,
+    ) -> Optional[float]:
+        """Ray vs. oriented 2D box (slab method in the box's local frame)."""
+        cos_r = math.cos(rotation_rad)
+        sin_r = math.sin(rotation_rad)
+        # World-to-local rotation: transpose of [[cos, -sin], [sin, cos]].
+        ox = origin[0] - center[0]
+        oy = origin[1] - center[1]
+        lox = cos_r * ox + sin_r * oy
+        loy = -sin_r * ox + cos_r * oy
+        ldx = cos_r * direction[0] + sin_r * direction[1]
+        ldy = -sin_r * direction[0] + cos_r * direction[1]
+
+        hx, hy = half_extents
+        tmin = -math.inf
+        tmax = math.inf
+        for lo, ld, h in ((lox, ldx, hx), (loy, ldy, hy)):
+            if abs(ld) < 1e-12:
+                if lo < -h or lo > h:
+                    return None
+                continue
+            t1 = (-h - lo) / ld
+            t2 = (h - lo) / ld
+            if t1 > t2:
+                t1, t2 = t2, t1
+            if t1 > tmin:
+                tmin = t1
+            if t2 < tmax:
+                tmax = t2
+            if tmin > tmax:
+                return None
+        if tmax < 0.0:
+            return None
+        return float(max(0.0, tmin))
+
+    def compute_whiskers(
+        self,
+        obstacles: List[Tuple[float, float, float]],
+        target: Optional[Tuple[float, float, float]] = None,
+        target_bbox_pose: Optional[Dict[str, float]] = None,
+    ) -> List[Tuple[Vec2, Vec2, bool]]:
         local_x, _ = self._basis_vectors()
         origin = np.array([self.x, self.y], dtype=float) + local_x * 0.12
         whisker_segments: List[Tuple[Vec2, Vec2, bool]] = []
         lengths: List[float] = []
+        target_bbox_lengths: List[float] = []
 
         wall_segments = [
             (np.array([0.0, 0.0], dtype=float), np.array([self.ROOM_WIDTH_M, 0.0], dtype=float)),
@@ -518,6 +589,32 @@ class Robot:
             (np.array([self.ROOM_WIDTH_M, self.ROOM_HEIGHT_M], dtype=float), np.array([0.0, self.ROOM_HEIGHT_M], dtype=float)),
             (np.array([0.0, self.ROOM_HEIGHT_M], dtype=float), np.array([0.0, 0.0], dtype=float)),
         ]
+
+        # Primary whisker channel hits "anything that isn't empty space"; on
+        # hardware this includes the physical target, which we model in sim as
+        # a circle of radius `target[2]` centred at `target[:2]`.
+        target_center: Optional[Vec2] = None
+        target_radius = 0.0
+        if target is not None:
+            target_center = np.array([target[0], target[1]], dtype=float)
+            target_radius = float(target[2])
+
+        # Parallel target-bbox channel: CV-pipeline proxy. Tight square of side
+        # 2*radius rotated by rotation_rad and translated by (offset_x,
+        # offset_y). The policy fuses the two channels to learn that target
+        # hits are attractive, not obstacles.
+        bbox_center: Optional[Vec2] = None
+        bbox_half_extents: Optional[Tuple[float, float]] = None
+        bbox_rotation_rad = 0.0
+        if target is not None and target_bbox_pose is not None:
+            tx, ty, tr = target
+            bbox_center = np.array(
+                [tx + float(target_bbox_pose.get("offset_x", 0.0)),
+                 ty + float(target_bbox_pose.get("offset_y", 0.0))],
+                dtype=float,
+            )
+            bbox_half_extents = (float(tr), float(tr))
+            bbox_rotation_rad = float(target_bbox_pose.get("rotation_rad", 0.0))
 
         for angle_deg in self.WHISKER_ANGLES_DEG:
             theta = self._deg_to_rad(self.heading_deg + angle_deg)
@@ -539,34 +636,84 @@ class Robot:
                     min_dist = float(d)
                     hit = True
 
+            if target_center is not None and target_radius > 0.0:
+                d = self._ray_circle_intersection(origin, direction, target_center, target_radius)
+                if d is not None and 0.0 <= d < min_dist:
+                    min_dist = float(d)
+                    hit = True
+
+            if bbox_center is not None and bbox_half_extents is not None:
+                bbox_d = self._ray_obb_intersection(
+                    origin, direction, bbox_center, bbox_half_extents, bbox_rotation_rad
+                )
+            else:
+                bbox_d = None
+
+            if bbox_d is None or bbox_d >= self.WHISKER_MAX_LEN_M:
+                target_bbox_lengths.append(self.WHISKER_MAX_LEN_M)
+            else:
+                target_bbox_lengths.append(float(max(0.0, bbox_d)))
+
             endpoint = origin + direction * min_dist
             whisker_segments.append((origin.copy(), endpoint, hit))
             lengths.append(min_dist)
 
         self.whisker_lengths = lengths
+        self.target_bbox_lengths = target_bbox_lengths
         return whisker_segments
 
-    def check_collision(self, obstacles: List[Tuple[float, float, float]]) -> bool:
-        collided = False
+    def check_collision(
+        self,
+        obstacles: List[Tuple[float, float, float]],
+        target: Optional[Tuple[float, float, float]] = None,
+    ) -> bool:
+        """Physical overlap check. Sets:
+          - collision_flag + collision_source='wall'|'obstacle' on hard failures
+          - target_contact_flag + collision_source='target' when robot body
+            overlaps the target circle (a successful reach, not a failure)
+        Returns True only for hard-failure overlap (wall/obstacle). A
+        target-only overlap returns False so Robot.step does not revert the
+        robot's position — the caller promotes target_contact_flag into a
+        goal-reached event.
+        """
+        hard_collided = False
+        source: Optional[str] = None
 
         if self.x - self.collision_radius < 0.0:
-            collided = True
+            hard_collided = True; source = "wall"
         if self.x + self.collision_radius > self.ROOM_WIDTH_M:
-            collided = True
+            hard_collided = True; source = "wall"
         if self.y - self.collision_radius < 0.0:
-            collided = True
+            hard_collided = True; source = "wall"
         if self.y + self.collision_radius > self.ROOM_HEIGHT_M:
-            collided = True
+            hard_collided = True; source = "wall"
 
         for ox, oy, radius in obstacles:
             dx = self.x - ox
             dy = self.y - oy
             if dx * dx + dy * dy <= (self.collision_radius + radius) ** 2:
-                collided = True
+                hard_collided = True
+                source = "obstacle"
                 break
 
-        if collided:
+        target_hit = False
+        if target is not None:
+            tx, ty, tr = target
+            dx = self.x - tx
+            dy = self.y - ty
+            if dx * dx + dy * dy <= (self.collision_radius + float(tr)) ** 2:
+                target_hit = True
+
+        if target_hit:
+            # Recorded independently of hard_collided so that simultaneous
+            # target + obstacle overlap still surfaces the target contact.
+            # Callers that treat target contact as success should check this
+            # flag before acting on collision_flag.
+            self.target_contact_flag = True
+
+        if hard_collided:
             self.collision_flag = True
+            self.collision_source = source
             self.collision_flash_timer = 0.20
             if self.control_mode == "heading_drive":
                 self.drive_command = {"rotation_rate": 0.0, "drive_speed": 0.0}
@@ -574,16 +721,24 @@ class Robot:
                 self.drive_command = {"rotation_rate": 0.0, "vx": 0.0, "vy": 0.0}
             else:
                 self.drive_command = {"vx": 0.0, "vy": 0.0}
+        elif target_hit:
+            self.collision_source = "target"
 
-        return collided
+        return hard_collided
 
-    def step(self, dt: float, obstacles: List[Tuple[float, float, float]]) -> List[Tuple[Vec2, Vec2, bool]]:
+    def step(
+        self,
+        dt: float,
+        obstacles: List[Tuple[float, float, float]],
+        target: Optional[Tuple[float, float, float]] = None,
+        target_bbox_pose: Optional[Dict[str, float]] = None,
+    ) -> List[Tuple[Vec2, Vec2, bool]]:
         prev_x, prev_y, prev_h = self.x, self.y, self.heading_deg
         self.integrate(dt)
-        if self.check_collision(obstacles):
+        if self.check_collision(obstacles, target=target):
             self.x, self.y, self.heading_deg = prev_x, prev_y, prev_h
 
-        whiskers = self.compute_whiskers(obstacles)
+        whiskers = self.compute_whiskers(obstacles, target=target, target_bbox_pose=target_bbox_pose)
 
         if self.collision_flash_timer > 0.0:
             self.collision_flash_timer = max(0.0, self.collision_flash_timer - dt)

@@ -10,11 +10,28 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
 
-STATE_INPUT_DIM = 12  # 11 whiskers + heading_to_target
+STATE_INPUT_DIM = 23  # 11 whiskers + 11 target-bbox whiskers + heading_to_target
 MODE_HEADING = "heading_drive"
 MODE_STRAFE = "xy_strafe"
 MODE_HEADING_STRAFE = "heading_strafe"
 EPS = 1e-6
+
+# Saturation-normalisation bounds. Every feature is divided by its physical
+# bound so normalised inputs land in [-1, 1] (or [0, 1] for whiskers). This
+# avoids the std-clamp pathology when a feature has no variance in a given
+# training run — e.g. all whiskers pinned at WHISKER_MAX_M during an
+# obstacle-free clean lap.
+WHISKER_MAX_M = 0.50
+HEADING_MAX_DEG = 180.0
+DRIVE_MAX_MPS = 0.40
+ROTATE_MAX_DPS = 40.0
+
+_ACTION_SCALE_M: Dict[str, float] = {
+    "drive_speed": DRIVE_MAX_MPS,
+    "rotation_rate": ROTATE_MAX_DPS,
+    "vx": DRIVE_MAX_MPS,
+    "vy": DRIVE_MAX_MPS,
+}
 
 
 @dataclass
@@ -233,11 +250,31 @@ def _build_input_layout(mode: str, memory_steps: int) -> List[str]:
         offset = oldest_offset + i
         prefix = f"t{offset:+d}"
         layout.append(f"{prefix}.whiskers")
+        layout.append(f"{prefix}.target_bbox_lengths")
         layout.append(f"{prefix}.heading_to_target")
         if i < memory_steps - 1:
             for action_key in action_keys:
                 layout.append(f"{prefix}.action.{action_key}")
     return layout
+
+
+def build_input_scale(mode: str, memory_steps: int) -> np.ndarray:
+    """Per-feature saturation divisor matching _build_input_layout ordering."""
+    action_keys = _action_keys_for_mode(mode)
+    scales: List[float] = []
+    for i in range(memory_steps):
+        scales.extend([WHISKER_MAX_M] * 11)       # whisker_lengths
+        scales.extend([WHISKER_MAX_M] * 11)       # target_bbox_lengths
+        scales.append(HEADING_MAX_DEG)            # heading_to_target
+        if i < memory_steps - 1:
+            for k in action_keys:
+                scales.append(_ACTION_SCALE_M[k])
+    return np.asarray(scales, dtype=np.float64)
+
+
+def build_output_scale(mode: str) -> np.ndarray:
+    """Per-output saturation divisor matching _action_keys_for_mode ordering."""
+    return np.asarray([_ACTION_SCALE_M[k] for k in _action_keys_for_mode(mode)], dtype=np.float64)
 
 
 def _state_pad_step(mode: str, source: Dict[str, object]) -> Dict[str, object]:
@@ -247,9 +284,13 @@ def _state_pad_step(mode: str, source: Dict[str, object]) -> Dict[str, object]:
     whiskers_src = source.get("whisker_lengths") if isinstance(source, dict) else None
     if not isinstance(whiskers_src, (list, tuple)):
         whiskers_src = [0.5] * 11
+    bbox_src = source.get("target_bbox_lengths") if isinstance(source, dict) else None
+    if not isinstance(bbox_src, (list, tuple)):
+        bbox_src = [0.5] * 11
     heading_src = source.get("heading_to_target", 0.0) if isinstance(source, dict) else 0.0
     return {
         "whisker_lengths": [float(v) for v in whiskers_src],
+        "target_bbox_lengths": [float(v) for v in bbox_src],
         "heading_to_target": float(heading_src),
         "action": {k: 0.0 for k in _action_keys_for_mode(mode)},
     }
@@ -257,8 +298,12 @@ def _state_pad_step(mode: str, source: Dict[str, object]) -> Dict[str, object]:
 
 def _legacy_row_to_history(row: Dict[str, object], mode: str) -> List[Dict[str, object]]:
     action = {k: float(row.get(k, 0.0)) for k in _action_keys_for_mode(mode)}
+    bbox = row.get("target_bbox_lengths")
+    if not isinstance(bbox, (list, tuple)):
+        bbox = [0.5] * 11
     return [{
         "whisker_lengths": row["whisker_lengths"],
+        "target_bbox_lengths": list(bbox),
         "heading_to_target": row["heading_to_target"],
         "action": action,
     }]
@@ -268,11 +313,14 @@ def _flatten_history_features(mode: str, history: List[Dict[str, object]]) -> Li
     features: List[float] = []
     for i, step in enumerate(history):
         whiskers = step["whisker_lengths"]
+        bbox_lens = step.get("target_bbox_lengths")
         heading = float(step["heading_to_target"])
         if not isinstance(whiskers, list) or len(whiskers) != 11:
             raise ValueError("whisker_lengths must be a list of length 11")
+        if not isinstance(bbox_lens, list) or len(bbox_lens) != 11:
+            raise ValueError("target_bbox_lengths must be a list of length 11")
 
-        state = [float(v) for v in whiskers] + [heading]
+        state = [float(v) for v in whiskers] + [float(v) for v in bbox_lens] + [heading]
         features.extend(state)
 
         # Current timestep contributes state only; prior timesteps include action.
@@ -442,15 +490,22 @@ def split_train_val(dataset: Dataset, val_ratio: float = 0.2, seed: int = 123) -
     return train, val
 
 
-def compute_norm(x: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
-    mean = np.mean(x, axis=0, keepdims=True)
-    std = np.std(x, axis=0, keepdims=True)
-    std = np.where(std < EPS, 1.0, std)
-    return mean, std
+def apply_scale(x: np.ndarray, scale: np.ndarray) -> np.ndarray:
+    """Saturation normalisation: raw physical value -> normalised by divisor.
+
+    `scale` is a row-shaped (1, D) or flat (D,) vector of physical bounds.
+    Features with a well-defined bound (whiskers, heading, drive, rotation)
+    map into [-1, 1] (or [0, 1] for inherently non-negative features).
+    """
+    s = np.asarray(scale, dtype=np.float64).reshape(1, -1)
+    s = np.where(np.abs(s) < EPS, 1.0, s)
+    return x / s
 
 
-def apply_norm(x: np.ndarray, mean: np.ndarray, std: np.ndarray) -> np.ndarray:
-    return (x - mean) / std
+def unapply_scale(x_norm: np.ndarray, scale: np.ndarray) -> np.ndarray:
+    s = np.asarray(scale, dtype=np.float64).reshape(1, -1)
+    s = np.where(np.abs(s) < EPS, 1.0, s)
+    return x_norm * s
 
 
 def next_index(output_dir: Path, mode_suffix: str) -> int:
@@ -627,7 +682,7 @@ class TrainerApp:
         bad = '<>:"/\\|?*'
         return "".join("_" if c in bad else c for c in stem)
 
-    def _resolve_model_paths(self, mode_suffix: str) -> Tuple[Path, Path, Path]:
+    def _resolve_model_paths(self, mode_suffix: str) -> Tuple[Path, Path]:
         output_dir = Path(self.output_dir.get())
         stem = self._sanitize_model_stem(self.model_name.get())
         if stem:
@@ -635,13 +690,11 @@ class TrainerApp:
             return (
                 output_dir / f"model_{base}.json",
                 output_dir / f"metrics_{base}.json",
-                output_dir / f"params_{base}.json",
             )
         idx = next_index(output_dir, mode_suffix) if output_dir.exists() else 1
         return (
             output_dir / f"model_{mode_suffix}_{idx:03d}.json",
             output_dir / f"metrics_{mode_suffix}_{idx:03d}.json",
-            output_dir / f"params_{mode_suffix}_{idx:03d}.json",
         )
 
     def _refresh_path_preview(self) -> None:
@@ -649,7 +702,7 @@ class TrainerApp:
             suffixes = ["heading", "strafe", "heading_strafe"]
             lines: List[str] = []
             for s in suffixes:
-                model_p, _, _ = self._resolve_model_paths(s)
+                model_p, _ = self._resolve_model_paths(s)
                 lines.append(f"{s}: {model_p}")
             self.path_preview_var.set("\n".join(lines))
         except Exception as e:
@@ -697,10 +750,8 @@ class TrainerApp:
         mode: str,
         model: NumpyMLP,
         input_dim: int,
-        x_mean: np.ndarray,
-        x_std: np.ndarray,
-        y_mean: np.ndarray,
-        y_std: np.ndarray,
+        x_scale: np.ndarray,
+        y_scale: np.ndarray,
         history: Dict[str, List[float]],
         cfg: Dict[str, object],
         n_samples: int,
@@ -712,14 +763,22 @@ class TrainerApp:
             MODE_HEADING_STRAFE: "heading_strafe",
         }
         mode_suffix = mode_suffix_map.get(mode, "other")
-        model_path, metrics_path, params_path = self._resolve_model_paths(mode_suffix)
+        model_path, metrics_path = self._resolve_model_paths(mode_suffix)
 
         memory_steps = _infer_memory_steps(input_dim=input_dim, mode=mode)
         output_layout = _action_keys_for_mode(mode)
 
+        deploy_meta = self._build_deployment_metadata(
+            mode=mode,
+            output_layout=list(output_layout),
+            mode_meta=mode_meta or {},
+        )
+
         model_blob = {
             "saved_at": datetime.now().isoformat(timespec="seconds"),
+            "schema_version": 2,
             "mode": mode,
+            "mode_suffix": mode_suffix,
             "model_mode": _model_mode_name(mode),
             "input_dim": int(input_dim),
             "output_dim": int(model.biases[-1].shape[1]),
@@ -733,10 +792,13 @@ class TrainerApp:
             "activation": str(cfg["activation"]),
             "weights": [w.tolist() for w in model.weights],
             "biases": [b.tolist() for b in model.biases],
-            "x_mean": x_mean.tolist(),
-            "x_std": x_std.tolist(),
-            "y_mean": y_mean.tolist(),
-            "y_std": y_std.tolist(),
+            "normalization": "saturation",
+            "x_scale": x_scale.tolist(),
+            "y_scale": y_scale.tolist(),
+            # Deployment metadata (formerly a separate params_*.json sidecar):
+            # geometry, conventions, runtime behaviour, and data-derived fields
+            # needed by simulator / benchmark / ROS node consumers.
+            **deploy_meta,
         }
 
         metrics_blob = {
@@ -751,38 +813,22 @@ class TrainerApp:
         }
 
         with open(model_path, "w", encoding="utf-8") as f:
-            json.dump(model_blob, f)
+            json.dump(model_blob, f, indent=2)
 
         with open(metrics_path, "w", encoding="utf-8") as f:
             json.dump(metrics_blob, f)
 
-        params_blob = self._build_params_blob(
-            mode=mode,
-            mode_suffix=mode_suffix,
-            memory_steps=int(memory_steps),
-            input_dim=int(input_dim),
-            output_layout=list(output_layout),
-            activation=str(cfg["activation"]),
-            model_path=model_path,
-            mode_meta=mode_meta or {},
-        )
-        with open(params_path, "w", encoding="utf-8") as f:
-            json.dump(params_blob, f, indent=2)
-
-        self._last_params_path = params_path
         return model_path, metrics_path
 
-    def _build_params_blob(
+    def _build_deployment_metadata(
         self,
         mode: str,
-        mode_suffix: str,
-        memory_steps: int,
-        input_dim: int,
         output_layout: List[str],
-        activation: str,
-        model_path: Path,
         mode_meta: Dict[str, object],
     ) -> Dict[str, object]:
+        """Fields merged into the model JSON alongside weights/scales.
+        Kept separate for readability; callers spread the result via **."""
+
         def dominant(field: str, default: float) -> float:
             info = mode_meta.get(field) if isinstance(mode_meta, dict) else None
             if isinstance(info, dict):
@@ -811,10 +857,10 @@ class TrainerApp:
         }
 
         saturation = {
-            "rotation_rate_dps": 40.0,
-            "drive_speed_mps": 0.40,
-            "vx_mps": 0.40,
-            "vy_mps": 0.40,
+            "rotation_rate_dps": ROTATE_MAX_DPS,
+            "drive_speed_mps": DRIVE_MAX_MPS,
+            "vx_mps": DRIVE_MAX_MPS,
+            "vy_mps": DRIVE_MAX_MPS,
         }
 
         # Hysteresis exit threshold is min_turn - hyst_band. If band is 0,
@@ -839,25 +885,21 @@ class TrainerApp:
         }
 
         return {
-            "saved_at": datetime.now().isoformat(timespec="seconds"),
-            "schema_version": 1,
-            "mode": mode,
-            "mode_suffix": mode_suffix,
-            "model_file": model_path.name,
-            "memory_steps": int(memory_steps),
-            "input_dim": int(input_dim),
-            "output_dim": len(output_layout),
             "log_rate_hz": float(log_rate_hz),
-            "activation": activation,
             "whisker": {
                 "count": 11,
-                "max_length_m": 0.50,
+                "max_length_m": WHISKER_MAX_M,
                 "angles_deg_left_to_right": [90, 60, 45, 30, 15, 0, -15, -30, -45, -60, -90],
             },
             "input_signals": {
                 "per_timestep_state": [
-                    {"name": "whisker_lengths", "unit": "m", "count": 11, "range": [0.0, 0.50]},
-                    {"name": "heading_to_target", "unit": "deg", "sign": "+ = target to robot LEFT"},
+                    {"name": "whisker_lengths", "unit": "m", "count": 11, "range": [0.0, WHISKER_MAX_M]},
+                    {"name": "target_bbox_lengths", "unit": "m", "count": 11, "range": [0.0, WHISKER_MAX_M],
+                     "source": "ray-vs-target-bbox; independent of obstacle/wall range; deployment "
+                               "side must compute per-whisker ray intersection with the CV bbox "
+                               "around the target object, clamped to 0.50 m."},
+                    {"name": "heading_to_target", "unit": "deg", "sign": "+ = target to robot LEFT",
+                     "range": [-HEADING_MAX_DEG, HEADING_MAX_DEG]},
                 ],
                 "past_action_slice_order": action_slice_order_map.get(mode, []),
             },
@@ -905,16 +947,17 @@ class TrainerApp:
     ) -> None:
         train_set, val_set = split_train_val(dataset)
 
-        x_mean, x_std = compute_norm(train_set.x)
-        y_mean, y_std = compute_norm(train_set.y)
+        input_dim = dataset.x.shape[1]
+        memory_steps = _infer_memory_steps(input_dim=input_dim, mode=mode)
+        x_scale = build_input_scale(mode=mode, memory_steps=memory_steps)
+        y_scale = build_output_scale(mode=mode)
 
-        x_train = apply_norm(train_set.x, x_mean, x_std)
-        y_train = apply_norm(train_set.y, y_mean, y_std)
-        x_val = apply_norm(val_set.x, x_mean, x_std)
-        y_val = apply_norm(val_set.y, y_mean, y_std)
+        x_train = apply_scale(train_set.x, x_scale)
+        y_train = apply_scale(train_set.y, y_scale)
+        x_val = apply_scale(val_set.x, x_scale)
+        y_val = apply_scale(val_set.y, y_scale)
 
         output_dim = dataset.y.shape[1]
-        input_dim = dataset.x.shape[1]
         model = NumpyMLP(
             input_dim=input_dim,
             output_dim=output_dim,
@@ -940,10 +983,8 @@ class TrainerApp:
             mode=mode,
             model=model,
             input_dim=input_dim,
-            x_mean=x_mean,
-            x_std=x_std,
-            y_mean=y_mean,
-            y_std=y_std,
+            x_scale=x_scale,
+            y_scale=y_scale,
             history=history,
             cfg=cfg,
             mode_meta=mode_meta or {},
@@ -952,9 +993,6 @@ class TrainerApp:
 
         self.log(f"Saved model: {model_path}")
         self.log(f"Saved metrics: {metrics_path}")
-        params_path = getattr(self, "_last_params_path", None)
-        if params_path is not None:
-            self.log(f"Saved params: {params_path}")
         self.log(
             f"{mode} final losses -> train: {history['train_loss'][-1]:.6f}, "
             f"val: {history['val_loss'][-1]:.6f}"

@@ -30,8 +30,8 @@ _ACTION_FEATURE_ORDER: Dict[str, np.ndarray] = {
     "xy_strafe": np.array([0, 1], dtype=np.int64),
     "heading_strafe": np.array([0, 1, 2], dtype=np.int64),
 }
-# State features per timestep: 11 whiskers (raw metres) + 1 heading (raw degrees).
-_STATE_DIM = 12
+# State features per timestep: 11 whiskers + 11 target-bbox whiskers + 1 heading.
+_STATE_DIM = 23
 
 from sim_core import (
     ROOM_HEIGHT,
@@ -40,6 +40,7 @@ from sim_core import (
     Robot,
     generate_obstacles,
     generate_target,
+    generate_target_bbox_pose,
 )
 
 
@@ -86,6 +87,7 @@ class HeadlessSimulator:
 
         self.obstacles: List[Tuple[float, float, float]] = []
         self.target: Tuple[float, float, float] = (ROOM_WIDTH * 0.5, ROOM_HEIGHT * 0.5, 0.075)
+        self.target_bbox_pose: Dict[str, float] = {"rotation_rad": 0.0, "offset_x": 0.0, "offset_y": 0.0}
         self.whisker_segments = []
 
         self.episode_steps = 0
@@ -105,7 +107,12 @@ class HeadlessSimulator:
         self._action_history: deque = deque(maxlen=max(1, self.history_window - 1))
 
     def _reset_episode_state(self) -> None:
-        self.whisker_segments = self.robot.compute_whiskers(self.obstacles)
+        self.robot.collision_flag = False
+        self.robot.target_contact_flag = False
+        self.robot.collision_source = None
+        self.whisker_segments = self.robot.compute_whiskers(
+            self.obstacles, target=self.target, target_bbox_pose=self.target_bbox_pose
+        )
         self.robot.update_heading_to_target(self.target)
 
         self.episode_steps = 0
@@ -165,6 +172,7 @@ class HeadlessSimulator:
                 target_r=0.075,
             )
             self.target = (float(tgt["x"]), float(tgt["y"]), float(tgt["radius"]))
+            self.target_bbox_pose = generate_target_bbox_pose(self.rng)
         else:
             pose = scenario.get("robot_pose", {})
             tgt = scenario.get("target", {})
@@ -187,19 +195,29 @@ class HeadlessSimulator:
                 float(tgt.get("y", ROOM_HEIGHT * 0.5)),
                 float(tgt.get("radius", 0.075)),
             )
+            bbox = scenario.get("target_bbox")
+            if isinstance(bbox, dict):
+                self.target_bbox_pose = {
+                    "rotation_rad": float(bbox.get("rotation_rad", 0.0)),
+                    "offset_x": float(bbox.get("offset_x", 0.0)),
+                    "offset_y": float(bbox.get("offset_y", 0.0)),
+                }
+            else:
+                self.target_bbox_pose = generate_target_bbox_pose(self.rng)
 
         self._reset_episode_state()
         return self._build_observation()
 
     def _encode_state(self) -> np.ndarray:
-        """Raw 12-element state: 11 whisker lengths (metres) + heading-to-target (degrees).
-
-        Matches the per-step feature layout produced by train_mlp._flatten_history_features
-        so that IL model weights can be transferred directly after baking in x_mean/x_std.
+        """Raw 23-element state: 11 whisker lengths (m) + 11 target-bbox lengths (m)
+        + heading-to-target (deg). Order matches train_mlp._flatten_history_features
+        so IL weights transfer directly after dividing by the per-feature saturation
+        scale vector (train_mlp.build_input_scale).
         """
         whiskers = np.asarray(self.robot.whisker_lengths, dtype=np.float32)
+        bbox_lens = np.asarray(self.robot.target_bbox_lengths, dtype=np.float32)
         heading  = np.array([float(self.robot.heading_to_target_deg)], dtype=np.float32)
-        return np.concatenate([whiskers, heading], axis=0)
+        return np.concatenate([whiskers, bbox_lens, heading], axis=0)
 
     def _encode_action_physical(self, action_normalized: np.ndarray) -> np.ndarray:
         """Convert a normalized [-1, 1] action to physical units for history storage."""
@@ -211,7 +229,7 @@ class HeadlessSimulator:
 
         State entries are raw (un-normalised); action entries are in physical units.
         This layout is identical to the feature vectors produced by train_mlp.py,
-        so IL model x_mean/x_std apply directly.
+        so IL model x_scale applies directly.
         """
         states  = list(self._state_history)
         actions = list(self._action_history)[:self.history_window - 1]
@@ -236,15 +254,23 @@ class HeadlessSimulator:
         prev_distance = self._distance_to_target()
 
         self.robot.collision_flag = False
+        self.robot.target_contact_flag = False
+        self.robot.collision_source = None
         self.robot.apply_normalized_action(action_arr)
-        self.whisker_segments = self.robot.step(self.dt, self.obstacles)
+        self.whisker_segments = self.robot.step(
+            self.dt, self.obstacles, target=self.target, target_bbox_pose=self.target_bbox_pose
+        )
         self.robot.update_heading_to_target(self.target)
 
         self.simulated_time += self.dt
         self.episode_steps += 1
         self.trajectory_history.append((self.robot.x, self.robot.y))
 
-        collided_this_step = bool(self.robot.collision_flag)
+        # Target contact (body overlap with target circle) preempts collision:
+        # if the robot reached the goal on the same tick it grazed an obstacle,
+        # the episode is a success.
+        target_contact = bool(self.robot.target_contact_flag)
+        collided_this_step = bool(self.robot.collision_flag) and not target_contact
         if collided_this_step:
             self.collision_count += 1
 
@@ -254,14 +280,14 @@ class HeadlessSimulator:
             reward += self.collision_penalty
         reward += self.timestep_penalty
 
-        reached_target = curr_distance <= TARGET_REACH_RADIUS
+        reached_target = (curr_distance <= TARGET_REACH_RADIUS) or target_contact
         terminated = bool(reached_target)
         truncated = False
         stuck_failed = False
         collision_failed = False
 
         # Collision termination: treat collision as an immediate failure.
-        if collided_this_step and self.terminate_on_collision:
+        if collided_this_step and self.terminate_on_collision and not target_contact:
             terminated = True
             collision_failed = True
             reward += self.collision_fail_penalty
@@ -306,6 +332,8 @@ class HeadlessSimulator:
             },
             "obstacles": [{"x": ox, "y": oy, "radius": r} for ox, oy, r in self.obstacles],
             "target": {"x": self.target[0], "y": self.target[1], "radius": self.target[2]},
+            "target_bbox_pose": dict(self.target_bbox_pose),
             "whisker_lengths": [float(v) for v in self.robot.whisker_lengths],
+            "target_bbox_lengths": [float(v) for v in self.robot.target_bbox_lengths],
             "trajectory_history": [(float(x), float(y)) for x, y in self.trajectory_history],
         }
