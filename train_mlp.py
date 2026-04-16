@@ -542,12 +542,11 @@ class TrainerApp:
         self._refresh_path_preview()
         self.model_name.trace_add("write", lambda *_: self._refresh_path_preview())
         self.output_dir.trace_add("write", lambda *_: self._refresh_path_preview())
-        # Force a full layout pass before any modal dialog steals focus.
-        # Without this, nested ttk.LabelFrame widgets on Windows can render at
-        # zero height until a user-initiated event (e.g. Browse) forces a
-        # redraw — which hid the Train button on first launch.
+        # Force a full layout pass before the window becomes visible.
+        # This prevents the Train button from being hidden by delayed redraws
+        # on some platforms.
         self.root.update_idletasks()
-        self.root.after(400, self.select_files)
+        self.root.update()
 
     def _build_ui(self) -> None:
         pad = {"padx": 8, "pady": 6}
@@ -612,17 +611,17 @@ class TrainerApp:
         )
         path_preview_label.grid(row=2, column=1, columnspan=2, sticky="w", **pad)
 
+        action_frame = ttk.Frame(self.root)
+        action_frame.pack(fill="x", **pad)
+        self.train_button = ttk.Button(action_frame, text="Train Models", command=self.start_training)
+        self.train_button.pack(anchor="w", padx=8, pady=(0, 6))
+
         status_frame = ttk.LabelFrame(self.root, text="Status")
-        status_frame.pack(side="bottom", fill="both", expand=True, **pad)
+        status_frame.pack(fill="both", expand=True, **pad)
 
         self.status_text = tk.Text(status_frame, height=10, wrap="word")
         self.status_text.pack(fill="both", expand=True, padx=8, pady=8)
         self.status_text.configure(state="disabled")
-
-        action_frame = ttk.Frame(self.root)
-        action_frame.pack(side="bottom", fill="x", **pad)
-        self.train_button = ttk.Button(action_frame, text="Train Models", command=self.start_training)
-        self.train_button.pack(anchor="w", padx=8)
 
         self.tooltips.extend(
             [
