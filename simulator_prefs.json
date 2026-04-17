@@ -4,11 +4,11 @@
   "min_turn_rate_dps": 2.0,
   "inner_deadband_dps": 2.0,
   "hysteresis_band_dps": 0.0,
-  "obstacle_count": 23,
+  "obstacle_count": 27,
   "vis_mode": "all",
   "input_mode": "model",
   "logging_enabled": false,
   "robot_aligned_view": true,
   "control_mode": "heading_strafe",
-  "place_against_wall": true
+  "place_against_wall": false
 }

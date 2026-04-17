@@ -1,231 +1,280 @@
 # RoboSim Navigation Trainer
 
-RoboSim Navigation Trainer is an imitation-learning framework for obstacle-aware
-robot navigation. It pairs an interactive 2D simulator with a NumPy MLP trainer
-and a headless benchmark evaluator, so you can collect demonstrations, train a
-policy, benchmark it, and close the loop with DAgger-style corrective data.
+RoboSim Navigation Trainer is a comprehensive robotics simulation and training system designed to teach robots navigation using imitation learning with whisker sensors. The system enables researchers, students, and developers to collect robot navigation data, train machine learning models, evaluate performance, and deploy to real robots.
 
-Looking for a guided walkthrough? See [QUICKSTART.md](QUICKSTART.md).
+The project consists of four main tools: an interactive simulator for data collection, an MLP trainer for imitation learning, a benchmark utility for evaluation, and a utility launcher that provides centralized access. The simulator features a robot with 11 whisker sensors that detect obstacles, and supports three control modes for different navigation strategies.
 
-## Installation
+At its core, RoboSim uses a physics-based simulation where a robot must navigate to targets while avoiding obstacles. The system collects sensor data (whisker distances and heading to target) along with expert control actions, which are then used to train Multi-Layer Perceptron (MLP) models. These models can be evaluated on benchmark scenarios and deployed to real robots via ROS 2.
 
-```bash
-pip install -r requirements.txt
-```
+The project is particularly valuable for robotics education and research, providing a complete pipeline from simulation to real-world deployment with consistent data formats and evaluation metrics.
 
-The trainer and evaluator are pure NumPy. The simulator uses `pygame` for
-rendering; the trainer and benchmark GUIs use `tkinter` (bundled with most
-Python builds). A gamepad is optional but recommended for demonstrations.
+## Getting Started
 
-## Launcher
+To get started with RoboSim Navigation Trainer:
 
-Start here. The launcher is a small Tkinter window that opens any of the three
-main utilities in its own Python process, so they can run side-by-side.
+1. **Install dependencies**: Run `pip install -r requirements.txt` to install pygame, numpy, and other required packages.
 
-```bash
-python utility_launcher.py
-```
+2. **Launch the Utility Launcher**: Run `python UTILITY_LAUNCHER.py` to open the central launcher that gives you access to all tools.
 
-Buttons:
+3. **Start with the Simulator**: Click "Open Simulator" in the launcher to begin collecting navigation data. Use keyboard controls (WASD or arrow keys) to navigate the robot to targets while avoiding obstacles.
 
-- **Open Simulator** — starts [simulator.py](simulator.py) for interactive
-  driving, demonstration logging, and model-in-the-loop testing.
-- **Open MLP Trainer** — starts [train_mlp.py](train_mlp.py) for training a
-  policy from one or more JSONL logs.
-- **Open Benchmark Utility** — starts [benchmark_gui.py](benchmark_gui.py) for
-  generating fixed map sets and running batch model evaluations.
+4. **Collect training data**: Enable logging in the simulator and complete several successful navigation episodes to build a dataset.
 
-Each button spawns an independent process rooted at the project directory, so
-you can keep the launcher open while any combination of tools runs.
+5. **Train a model**: Use the MLP Trainer to load your collected logs and train an imitation learning model.
 
-If you prefer the command line, each utility can be invoked directly:
+6. **Evaluate performance**: Use the Benchmark Utility to test your trained model on standardized scenarios.
 
-```bash
-python simulator.py
-python train_mlp.py
-python benchmark_gui.py
-```
+For first-time users, we recommend starting with the simulator to understand the robot's behavior and sensor inputs before moving to training and evaluation.
 
 ---
 
-## Simulator — [simulator.py](simulator.py)
+## Interactive Robot Control and Data Collection
 
-The simulator is the primary interactive workspace. You can drive manually via
-keyboard or gamepad, log demonstrations, load trained models, and build
-targeted DAgger queues for corrective data collection.
+Learn to control the simulated robot and collect training data for imitation learning. This workflow covers basic navigation, understanding sensor inputs, and logging successful episodes.
 
-### Top-bar controls
+### How to use
 
-- **Run** — starts a fresh randomized episode, or replays the next queued
-  DAgger case when the queue is non-empty.
-- **FAIL** — while a model is driving, snapshots the current scenario and
-  appends it to the DAgger queue for later human takeover.
-- **Obstacles −/+** — changes the number of obstacles generated per episode.
-- **Enable Logging** — toggles whether demonstration samples are written to
-  disk during manual driving.
-- **Control Mode** — switches between Heading+Drive, XY Strafe, and
-  Heading+Strafe.
-- **Vis Mode** — cycles through rendering styles (see below).
-- **Pick / Reload** — selects or reloads the JSON model used in model-driven
-  episodes for the active control mode.
-- **Robot View** — toggles a robot-aligned camera framing for comfortable
-  manual driving.
+1. Launch the Utility Launcher and click **Open Simulator** (1) to start the main simulator
 
-### Preferences panel
+2. In the simulator, select your control mode using the radio buttons (3-5): **Heading** for forward/rotate, **XY Strafe** for lateral movement, or **Heading+Strafe** for combined control
 
-Opens a sub-panel with the settings that affect logged-sample shape:
+3. Choose input method with radio buttons (6-8): **Keyboard** for manual control, **Gamepad** if connected, or **Model** to use a trained policy
 
-- **History (N)** — number of timesteps in each sample's history window.
-  Determines `memory_steps` and therefore model input dimensionality.
-- **Rate Hz** — effective logging frequency in Hz.
+4. Click **Run** (1) to start a new navigation episode - the robot appears in a room with obstacles and a target
 
-Both values are recorded in every log sample so the trainer can verify
-consistency across input files.
+5. Navigate using keyboard controls: WASD or arrow keys to move, Q/E to rotate
 
-### Control modes
+6. Avoid obstacles (gray circles) and reach the green target circle to complete the episode
 
-Choose before driving; a model trained in one mode cannot be used in another.
+7. Enable logging by checking **Logging** checkbox (9) to record successful episodes for training
 
-- **Heading + Drive** — outputs `[drive_speed, rotation_rate]`
-  (forward speed in m/s + yaw rate in deg/s).
-- **XY Strafe** — outputs `[vx, vy]`
-  (planar body-frame velocity in m/s).
-- **Heading + Strafe** — outputs `[rotation_rate, vx, vy]`
-  (yaw rate + planar body-frame velocity).
+8. Toggle **Robot View** checkbox (10) to switch between world-aligned and robot-aligned perspectives
 
-Sign convention is right-hand, z-up: positive rotation rate turns left,
-positive `vy` moves left, positive `heading_to_target` means the target is
-on the robot's left. See [SPEC.md](SPEC.md) and
-[MODEL_SPEC.md](MODEL_SPEC.md) for the full data-flow specification.
+9. If stuck, click **Fail** (2) to end the current episode and start fresh
 
-### Visualization modes
+10. Collect multiple successful episodes with different obstacle configurations to build a diverse dataset
 
-Rendering only; underlying physics and sensors are identical in every mode.
 
-- **All** — full-scene view for debugging map generation and geometry.
-- **Action Radius** — emphasizes the robot's local decision zone and reduces
-  clutter on dense maps.
-- **Detected** — shows obstacles as the whiskers sense them, useful for
-  inspecting perception timing.
-- **Sparse Sensing** — hides walls and undetected obstacles; only whisker
-  intersection points are visible. Best for judging what the policy actually
-  "sees" through the memory window.
+### Utility Launcher
 
-### Model-driven episodes and the DAgger loop
+Central launcher that provides one-click access to all main tools in the RoboSim Navigation Trainer project.
 
-Load a JSON model with **Pick** and select a model-driven run from the
-control menu. The model then issues commands each step while the simulator
-renders the result. This is where DAgger happens:
+![Utility Launcher](images/utility_launcher.svg)
 
-1. Watch the model drive.
-2. When it makes a mistake, hit **FAIL** (or let it crash) — the scenario is
-   frozen and queued in `dagger_snapshots/`.
-3. After collecting some queued cases, press **Run** with Enable Logging on.
-   The simulator will replay each queued case and hand control to you so you
-   can demonstrate the correct recovery.
-4. Retrain, adding the new logs to your dataset.
+**Labeled controls and displays:**
 
-This is complementary to batch benchmarking:
+1. **Title label** — Displays 'Launch a main utility' as the window title
 
-- Simulator is interactive and diagnostic — good for discovering failures and
-  collecting corrective data.
-- Benchmark is statistical and batch-oriented — good for apples-to-apples
-  model comparison.
+2. **Instruction label** — Shows 'This opens each tool in its own Python process.'
 
-### Output directories
+3. **Open Simulator button** — Launches the main robot navigation simulator for data collection
 
-- `logs/` — demonstration logs (JSONL, schema v2).
-- `dagger_snapshots/` — queued failure scenarios for takeover runs.
-- `trained_models/` — consumed by the simulator when loading models.
-- `benchmark_maps/` and `benchmark_reports/` — produced by the evaluator.
+4. **Open MLP Trainer button** — Opens the MLP training interface for imitation learning
+
+5. **Open Benchmark Utility button** — Starts the benchmark evaluation tool for model testing
+
+The Utility Launcher is your starting point for the entire RoboSim system. Click **Open Simulator** (3) to begin controlling the robot and collecting data. Use **Open MLP Trainer** (4) to train imitation learning models from your collected logs. Select **Open Benchmark Utility** (5) to evaluate trained models on standardized scenarios. The status display (2) shows launch confirmation messages. All tools open in separate processes, allowing you to run multiple applications simultaneously.
+
+
+### Main Simulator
+
+Primary robot navigation simulator with visual feedback, data collection, and model inference capabilities.
+
+![Main Simulator](images/main_simulator.svg)
+
+**Labeled controls and displays:**
+
+1. **Run button** — Starts a new navigation episode with random obstacles and target
+
+2. **Fail button** — Ends current episode and triggers DAgger human takeover in model mode
+
+3. **Heading control radio** — Sets control mode to heading_drive (forward speed + rotation rate)
+
+4. **XY Strafe control radio** — Sets control mode to xy_strafe (lateral movement in body frame)
+
+5. **Heading+Strafe control radio** — Sets control mode to heading_strafe (combined rotation + lateral)
+
+6. **Keyboard input radio** — Sets input mode to keyboard for manual control
+
+7. **Model input radio** — Sets input mode to model for autonomous policy execution
+
+8. **Logging checkbox** — Toggles data logging for successful navigation episodes
+
+9. **Robot view checkbox** — Toggles between world-aligned and robot-aligned camera views
+
+10. **Preferences button** — Opens preferences panel for simulation parameter adjustment
+
+The Main Simulator is where you control the robot and collect training data. Click **Run** (1) to start a new navigation episode in a room with randomly placed obstacles. Use **Fail** (2) to end the current episode. Select your control strategy with the radio buttons (3-5): **Heading** for forward/rotate control, **XY Strafe** for lateral movement, or **Heading+Strafe** for combined control. Choose input method with radio buttons (6-8): **Keyboard** for manual control, **Gamepad** if connected, or **Model** to use a trained policy. Enable **Logging** (9) to record successful episodes for training. Toggle **Robot View** (10) to switch between world-aligned and robot-aligned perspectives. Click **Preferences** (11) to adjust simulation parameters like history length and logging rate.
 
 ---
 
-## MLP Trainer — [train_mlp.py](train_mlp.py)
+## Training Imitation Learning Models
 
-Trains a small NumPy MLP from one or more simulator JSONL logs. No PyTorch
-required. The trained model is a self-contained JSON file that encodes
-weights, biases, per-feature normalization, and metadata.
+Train Multi-Layer Perceptron (MLP) models from collected navigation logs using imitation learning. This workflow covers data preparation, model configuration, and training execution.
 
-### Typical flow
+### How to use
 
-1. Launch the trainer.
-2. Add one or more JSONL logs from `logs/`. The trainer validates that all
-   inputs share the same control mode, history length, and sample rate.
-3. Configure architecture, optimizer, and training schedule.
-4. Set **Model Name** and confirm the **Full Path** preview.
-5. Click **Train**. A live loss curve updates each epoch.
-6. The trainer writes `<name>_<mode>.json` (model) and `<name>_<mode>_metrics.json`
-   (training metrics) into the Save Dir.
+1. From the Utility Launcher, click **Open MLP Trainer** (2) to launch the training interface
 
-### Key configuration
+2. Click **Select Log Files** (1) to choose the JSONL log files collected from the simulator
 
-- **Control mode** — must match the logs. Training halts if they mismatch.
-- **Hidden layers / Hidden width** — network size. Start small.
-- **Activation** — `relu`, `tanh`, or `leaky_relu` (alpha 0.01). The chosen
-  activation is stored in the model JSON and applied by every downstream
-  consumer (simulator, benchmark GUI, real-robot runtime).
-- **Learning rate, Batch size, Epochs** — standard optimizer knobs.
-- **Validation split** — fraction held out for the plotted validation curve.
-- **Model Name** — filename stem (sanitized). The trainer appends the mode
-  suffix (`_heading`, `_strafe`, `_heading_strafe`) automatically.
-- **Save Dir** — output folder; the preview label shows the exact resolved
-  path that will be written.
+3. Configure model architecture: set **Hidden Width** (3) and **Hidden Layers** (4) for network size
 
-### Outputs
+4. Set training parameters: **Epochs** (5) for training duration, **Batch Size** (6) for optimization, and **Learning Rate** (7) for gradient descent
 
-- `<name>_<mode>.json` — the model blob. Top-level fields include `mode`,
-  `input_dim`, `output_dim`, `memory_steps`, `activation`, `weights`,
-  `biases`, and per-channel normalization stats. Full schema in
-  [MODEL_SPEC.md](MODEL_SPEC.md).
-- `<name>_<mode>_metrics.json` — loss history, validation metrics, and
-  training configuration.
+5. Choose activation function with radio buttons (8-10): **ReLU** for standard networks, **Tanh** for bounded outputs, or **Leaky ReLU** to avoid dead neurons
 
-### Notes
+6. Specify output directory in **Save Dir** field (11) where trained models will be saved
 
-- Normalization stats (`x_mean`, `x_std`, `y_mean`, `y_std`) are computed from
-  the training split only and baked into the model JSON. Downstream
-  consumers never need to recompute them.
-- Outputs are in **physical units** (m/s, deg/s) after un-normalization, not
-  the `[-1, 1]` range seen during training. Clamp them at the motor boundary
-  (±0.40 m/s, ±40 deg/s).
+7. Enter a descriptive **Model Name** (12) to identify this training run
+
+8. Review the full path preview to confirm save location
+
+9. Click **Train Models** (13) to begin training - progress will show in the status area
+
+10. Monitor training progress through the console output; models are saved automatically upon completion
+
+
+### Utility Launcher
+
+Central launcher that provides one-click access to all main tools in the RoboSim Navigation Trainer project.
+
+![Utility Launcher](images/utility_launcher.svg)
+
+**Labeled controls and displays:**
+
+1. **Title label** — Displays 'Launch a main utility' as the window title
+
+2. **Instruction label** — Shows 'This opens each tool in its own Python process.'
+
+3. **Open Simulator button** — Launches the main robot navigation simulator for data collection
+
+4. **Open MLP Trainer button** — Opens the MLP training interface for imitation learning
+
+5. **Open Benchmark Utility button** — Starts the benchmark evaluation tool for model testing
+
+The Utility Launcher is your starting point for the entire RoboSim system. Click **Open Simulator** (3) to begin controlling the robot and collecting data. Use **Open MLP Trainer** (4) to train imitation learning models from your collected logs. Select **Open Benchmark Utility** (5) to evaluate trained models on standardized scenarios. The status display (2) shows launch confirmation messages. All tools open in separate processes, allowing you to run multiple applications simultaneously.
+
+
+### MLP Trainer
+
+GUI for training Multi-Layer Perceptron (MLP) models from collected navigation logs using imitation learning.
+
+![MLP Trainer](images/mlp_trainer.svg)
+
+**Labeled controls and displays:**
+
+1. **Select Log Files button** — Opens file dialog to choose JSONL log files for training
+
+2. **Files status label** — Shows count of selected log files or 'No files selected'
+
+3. **Hidden Width entry** — Sets number of neurons in each hidden layer
+
+4. **Hidden Layers entry** — Sets number of hidden layers in the network
+
+5. **Epochs entry** — Sets number of training epochs
+
+6. **Batch Size entry** — Sets batch size for gradient descent
+
+7. **Learning Rate entry** — Sets learning rate for optimization
+
+8. **ReLU activation radio** — Selects ReLU activation function for hidden layers
+
+9. **Tanh activation radio** — Selects Tanh activation function for hidden layers
+
+10. **Leaky ReLU activation radio** — Selects Leaky ReLU activation function for hidden layers
+
+11. **Save Directory entry** — Sets output directory for trained models and metrics
+
+12. **Model Name entry** — Sets base name for saved model files
+
+13. **Train Models button** — Starts training process with configured parameters
+
+The MLP Trainer processes collected navigation logs to train imitation learning models. Start by clicking **Select Log Files** (1) to choose JSONL files from your simulator sessions. The status label (2) shows how many files are selected. Configure the model architecture with **Hidden Width** (3) and **Hidden Layers** (4) entries. Set training parameters: **Epochs** (5) for training duration, **Batch Size** (6) for optimization steps, and **Learning Rate** (7) for gradient descent. Choose an activation function with radio buttons (8-10): **ReLU** for standard networks, **Tanh** for bounded outputs, or **Leaky ReLU** to avoid dead neurons. Specify where to save models in the **Save Dir** field (11) and enter a **Model Name** (12) to identify this training run. Finally, click **Train Models** (13) to begin training. Monitor progress through console output and status messages.
 
 ---
 
-## Benchmark Evaluator — [benchmark_gui.py](benchmark_gui.py)
+## Evaluating Trained Models
 
-Headless, batch-oriented model evaluation against a fixed map set. Designed
-for apples-to-apples comparison between model versions.
+Generate benchmark scenarios and evaluate trained models in standardized conditions for apples-to-apples performance comparison.
 
-### Typical flow
+### How to use
 
-1. Launch the benchmark GUI.
-2. **Generate Maps** — produces a reproducible set of scenario JSON files
-   under `benchmark_maps/`. Maps are control-mode agnostic: robot pose,
-   obstacles, and goal placement are fixed regardless of which model you
-   evaluate later.
-3. **Load Model** — pick a trained JSON model.
-4. **Run** — the simulator steps each map headlessly under the model's
-   control. Live metrics update as runs complete.
-5. **Save Report** — writes a summary into `benchmark_reports/` with success
-   rate, time-to-goal, collision counts, and per-map outcomes.
+1. Launch the Benchmark Utility from the Utility Launcher by clicking **Open Benchmark Utility** (3)
 
-### Why headless benchmark evaluation matters
+2. Set up benchmark generation: enter a **Benchmark folder** path (1) or click **Browse** (2) to select where maps will be saved
 
-- **Repeatability** — identical seeds and maps across runs.
-- **Comparability** — every model is scored against the same workload.
-- **Throughput** — hundreds of episodes evaluate in seconds.
-- **Decision support** — pick the winner before an interactive rollout.
+3. Configure map generation: set **# maps** (3) for how many scenarios to create, **Obstacles min/max** (4-5) for difficulty range, and **Base seed** (6) for reproducibility
 
-Use interactive evaluation in the simulator for qualitative judgment and
-DAgger data collection; use the benchmark GUI for quantitative model
-selection.
+4. Click **Generate Benchmark Maps** (7) to create standardized evaluation scenarios
+
+5. Load a trained model: enter the **Model file** path (8) or click **Browse** (9) to select a .json model from training
+
+6. Click **Run Evaluation** (10) to test the model on all generated benchmark maps
+
+7. Monitor progress through the **Progress bar** (11) and status messages
+
+8. Review evaluation results in the output area - metrics include success rate, average time to target, and collision statistics
+
+9. Compare different models by repeating evaluation with alternative model files
+
+10. Use consistent benchmark settings for fair comparison between different training runs or model architectures
+
+
+### Utility Launcher
+
+Central launcher that provides one-click access to all main tools in the RoboSim Navigation Trainer project.
+
+![Utility Launcher](images/utility_launcher.svg)
+
+**Labeled controls and displays:**
+
+1. **Title label** — Displays 'Launch a main utility' as the window title
+
+2. **Instruction label** — Shows 'This opens each tool in its own Python process.'
+
+3. **Open Simulator button** — Launches the main robot navigation simulator for data collection
+
+4. **Open MLP Trainer button** — Opens the MLP training interface for imitation learning
+
+5. **Open Benchmark Utility button** — Starts the benchmark evaluation tool for model testing
+
+The Utility Launcher is your starting point for the entire RoboSim system. Click **Open Simulator** (3) to begin controlling the robot and collecting data. Use **Open MLP Trainer** (4) to train imitation learning models from your collected logs. Select **Open Benchmark Utility** (5) to evaluate trained models on standardized scenarios. The status display (2) shows launch confirmation messages. All tools open in separate processes, allowing you to run multiple applications simultaneously.
+
+
+### Benchmark Utility
+
+Tool for generating benchmark maps and evaluating trained models on standardized scenarios.
+
+![Benchmark Utility](images/benchmark_gui.svg)
+
+**Labeled controls and displays:**
+
+1. **Benchmark folder entry** — Sets directory where benchmark maps will be saved
+
+2. **Browse folder button** — Opens directory dialog to select benchmark folder
+
+3. **Maps count spinbox** — Sets number of benchmark scenarios to generate
+
+4. **Min obstacles spinbox** — Sets minimum number of obstacles per scenario
+
+5. **Max obstacles spinbox** — Sets maximum number of obstacles per scenario
+
+6. **Base seed entry** — Sets random seed for reproducible map generation
+
+7. **Generate Maps button** — Creates benchmark scenarios with configured parameters
+
+8. **Model file entry** — Sets path to trained model JSON file for evaluation
+
+9. **Browse model button** — Opens file dialog to select trained model
+
+10. **Run Evaluation button** — Tests selected model on all benchmark scenarios
+
+11. **Progress bar** — Shows evaluation progress across benchmark scenarios
+
+The Benchmark Utility creates reproducible evaluation scenarios and tests trained models for apples-to-apples comparison. First, set up benchmark generation by entering a **Benchmark folder** path (1) or clicking **Browse** (2) to select where maps will be saved. Configure map generation with **# maps** (3) for scenario count, **Obstacles min/max** (4-5) for difficulty range, and **Base seed** (6) for reproducibility. Click **Generate Benchmark Maps** (7) to create standardized evaluation scenarios. To test a model, enter the **Model file** path (8) or click **Browse** (9) to select a .json model from training. Click **Run Evaluation** (10) to test the model on all generated benchmark maps. Monitor progress through the **Progress bar** (11) and status messages. Review evaluation results in the output area below the controls.
 
 ---
 
-## Further reading
 
-- [SPEC.md](SPEC.md) — authoritative data-flow specification (coordinates,
-  sensors, log schema, trainer pipeline, invariants).
-- [MODEL_SPEC.md](MODEL_SPEC.md) — standalone implementation spec for porting
-  the inference path to another runtime (e.g., a real robot).
+*Generated by [auto_labeler](https://github.com/auto-labeler).*
