@@ -1,0 +1,372 @@
+{
+  "screen_name": "main_simulator",
+  "image_width": 1280,
+  "image_height": 760,
+  "scaling_factor": 1.0,
+  "origin_x": 0,
+  "origin_y": 0,
+  "foreground_ok": true,
+  "runtime_seconds": 1.5,
+  "widgets": [
+    {
+      "id": "rect:checkbox_logging_rect",
+      "cls": "PygameRect",
+      "text": "checkbox logging",
+      "x": 922,
+      "y": 47,
+      "w": 18,
+      "h": 18,
+      "role": "control"
+    },
+    {
+      "id": "rect:checkbox_robot_view_rect",
+      "cls": "PygameRect",
+      "text": "checkbox robot view",
+      "x": 1082,
+      "y": 47,
+      "w": 18,
+      "h": 18,
+      "role": "control"
+    },
+    {
+      "id": "rect:fail_button_rect",
+      "cls": "PygameRect",
+      "text": "fail button",
+      "x": 160,
+      "y": 38,
+      "w": 110,
+      "h": 36,
+      "role": "control"
+    },
+    {
+      "id": "rect:model_pick_rect",
+      "cls": "PygameRect",
+      "text": "model pick",
+      "x": 604,
+      "y": 137,
+      "w": 68,
+      "h": 22,
+      "role": "display"
+    },
+    {
+      "id": "rect:model_reload_rect",
+      "cls": "PygameRect",
+      "text": "model reload",
+      "x": 682,
+      "y": 137,
+      "w": 72,
+      "h": 22,
+      "role": "display"
+    },
+    {
+      "id": "rect:obs_minus_rect",
+      "cls": "PygameRect",
+      "text": "obs minus",
+      "x": 400,
+      "y": 44,
+      "w": 24,
+      "h": 24,
+      "role": "display"
+    },
+    {
+      "id": "rect:obs_plus_rect",
+      "cls": "PygameRect",
+      "text": "obs plus",
+      "x": 470,
+      "y": 44,
+      "w": 24,
+      "h": 24,
+      "role": "display"
+    },
+    {
+      "id": "rect:panel_rect",
+      "cls": "PygameRect",
+      "text": "panel",
+      "x": 832,
+      "y": 208,
+      "w": 420,
+      "h": 524,
+      "role": "display"
+    },
+    {
+      "id": "rect:prefs_button_rect",
+      "cls": "PygameRect",
+      "text": "prefs button",
+      "x": 1162,
+      "y": 90,
+      "w": 80,
+      "h": 24,
+      "role": "control"
+    },
+    {
+      "id": "rect:prefs_close_rect",
+      "cls": "PygameRect",
+      "text": "prefs close",
+      "x": 834,
+      "y": 128,
+      "w": 28,
+      "h": 28,
+      "role": "display"
+    },
+    {
+      "id": "rect:prefs_hist_minus_rect",
+      "cls": "PygameRect",
+      "text": "prefs hist minus",
+      "x": 614,
+      "y": 180,
+      "w": 24,
+      "h": 24,
+      "role": "display"
+    },
+    {
+      "id": "rect:prefs_hist_plus_rect",
+      "cls": "PygameRect",
+      "text": "prefs hist plus",
+      "x": 684,
+      "y": 180,
+      "w": 24,
+      "h": 24,
+      "role": "display"
+    },
+    {
+      "id": "rect:prefs_hyst_minus_rect",
+      "cls": "PygameRect",
+      "text": "prefs hyst minus",
+      "x": 614,
+      "y": 380,
+      "w": 24,
+      "h": 24,
+      "role": "display"
+    },
+    {
+      "id": "rect:prefs_hyst_plus_rect",
+      "cls": "PygameRect",
+      "text": "prefs hyst plus",
+      "x": 684,
+      "y": 380,
+      "w": 24,
+      "h": 24,
+      "role": "display"
+    },
+    {
+      "id": "rect:prefs_inner_db_minus_rect",
+      "cls": "PygameRect",
+      "text": "prefs inner db minus",
+      "x": 614,
+      "y": 330,
+      "w": 24,
+      "h": 24,
+      "role": "display"
+    },
+    {
+      "id": "rect:prefs_inner_db_plus_rect",
+      "cls": "PygameRect",
+      "text": "prefs inner db plus",
+      "x": 684,
+      "y": 330,
+      "w": 24,
+      "h": 24,
+      "role": "display"
+    },
+    {
+      "id": "rect:prefs_min_turn_minus_rect",
+      "cls": "PygameRect",
+      "text": "prefs min turn minus",
+      "x": 614,
+      "y": 280,
+      "w": 24,
+      "h": 24,
+      "role": "display"
+    },
+    {
+      "id": "rect:prefs_min_turn_plus_rect",
+      "cls": "PygameRect",
+      "text": "prefs min turn plus",
+      "x": 684,
+      "y": 280,
+      "w": 24,
+      "h": 24,
+      "role": "display"
+    },
+    {
+      "id": "rect:prefs_place_wall_rect",
+      "cls": "PygameRect",
+      "text": "prefs place wall",
+      "x": 444,
+      "y": 605,
+      "w": 18,
+      "h": 18,
+      "role": "display"
+    },
+    {
+      "id": "rect:prefs_rate_minus_rect",
+      "cls": "PygameRect",
+      "text": "prefs rate minus",
+      "x": 614,
+      "y": 230,
+      "w": 24,
+      "h": 24,
+      "role": "display"
+    },
+    {
+      "id": "rect:prefs_rate_plus_rect",
+      "cls": "PygameRect",
+      "text": "prefs rate plus",
+      "x": 684,
+      "y": 230,
+      "w": 24,
+      "h": 24,
+      "role": "display"
+    },
+    {
+      "id": "rect:prefs_rect",
+      "cls": "PygameRect",
+      "text": "prefs",
+      "x": 410,
+      "y": 120,
+      "w": 460,
+      "h": 520,
+      "role": "display"
+    },
+    {
+      "id": "rect:prefs_vis_all_rect",
+      "cls": "PygameRect",
+      "text": "prefs vis all",
+      "x": 444,
+      "y": 440,
+      "w": 18,
+      "h": 18,
+      "role": "display"
+    },
+    {
+      "id": "rect:prefs_vis_detect_rect",
+      "cls": "PygameRect",
+      "text": "prefs vis detect",
+      "x": 444,
+      "y": 510,
+      "w": 18,
+      "h": 18,
+      "role": "display"
+    },
+    {
+      "id": "rect:prefs_vis_radius_rect",
+      "cls": "PygameRect",
+      "text": "prefs vis radius",
+      "x": 444,
+      "y": 475,
+      "w": 18,
+      "h": 18,
+      "role": "display"
+    },
+    {
+      "id": "rect:prefs_vis_sparse_rect",
+      "cls": "PygameRect",
+      "text": "prefs vis sparse",
+      "x": 444,
+      "y": 545,
+      "w": 18,
+      "h": 18,
+      "role": "display"
+    },
+    {
+      "id": "rect:radio_gamepad_rect",
+      "cls": "PygameRect",
+      "text": "radio gamepad",
+      "x": 273,
+      "y": 130,
+      "w": 18,
+      "h": 18,
+      "role": "control"
+    },
+    {
+      "id": "rect:radio_heading_rect",
+      "cls": "PygameRect",
+      "text": "radio heading",
+      "x": 148,
+      "y": 84,
+      "w": 18,
+      "h": 18,
+      "role": "control"
+    },
+    {
+      "id": "rect:radio_heading_strafe_rect",
+      "cls": "PygameRect",
+      "text": "radio heading strafe",
+      "x": 443,
+      "y": 84,
+      "w": 18,
+      "h": 18,
+      "role": "control"
+    },
+    {
+      "id": "rect:radio_keyboard_rect",
+      "cls": "PygameRect",
+      "text": "radio keyboard",
+      "x": 148,
+      "y": 130,
+      "w": 18,
+      "h": 18,
+      "role": "control"
+    },
+    {
+      "id": "rect:radio_model_rect",
+      "cls": "PygameRect",
+      "text": "radio model",
+      "x": 388,
+      "y": 130,
+      "w": 18,
+      "h": 18,
+      "role": "control"
+    },
+    {
+      "id": "rect:radio_xy_rect",
+      "cls": "PygameRect",
+      "text": "radio xy",
+      "x": 308,
+      "y": 84,
+      "w": 18,
+      "h": 18,
+      "role": "control"
+    },
+    {
+      "id": "rect:room_rect_px",
+      "cls": "PygameRect",
+      "text": "room px",
+      "x": 56,
+      "y": 254,
+      "w": 720,
+      "h": 432,
+      "role": "display"
+    },
+    {
+      "id": "rect:run_button_rect",
+      "cls": "PygameRect",
+      "text": "run button",
+      "x": 40,
+      "y": 38,
+      "w": 110,
+      "h": 36,
+      "role": "control"
+    },
+    {
+      "id": "rect:sim_rect",
+      "cls": "PygameRect",
+      "text": "sim",
+      "x": 28,
+      "y": 208,
+      "w": 776,
+      "h": 524,
+      "role": "display"
+    },
+    {
+      "id": "rect:toolbar_rect",
+      "cls": "PygameRect",
+      "text": "toolbar",
+      "x": 28,
+      "y": 28,
+      "w": 1224,
+      "h": 152,
+      "role": "display"
+    }
+  ]
+}

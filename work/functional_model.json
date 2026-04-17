@@ -1,0 +1,181 @@
+{
+  "project_name": "RoboSim Navigation Trainer",
+  "one_line_summary": "A robotics simulation and training system for teaching robots navigation using imitation learning with whisker sensors",
+  "audience": "Robotics researchers, students, and developers interested in robot navigation, imitation learning, and simulation-to-real transfer",
+  "primary_workflows": [
+    "Interactive robot control and data collection",
+    "Training imitation learning models",
+    "Evaluating trained models on benchmark scenarios"
+  ],
+  "components": [
+    {
+      "name": "Utility Launcher",
+      "purpose": "Central hub that launches all main tools in separate processes",
+      "key_classes": [
+        "UtilityLauncher"
+      ],
+      "key_functions": [],
+      "entry_points": [
+        "UTILITY_LAUNCHER.py"
+      ]
+    },
+    {
+      "name": "Main Simulator",
+      "purpose": "Interactive robot navigation simulator with visual feedback, data collection, and model inference",
+      "key_classes": [
+        "SimulatorApp"
+      ],
+      "key_functions": [
+        "main"
+      ],
+      "entry_points": [
+        "simulator.py"
+      ]
+    },
+    {
+      "name": "MLP Trainer",
+      "purpose": "GUI for training Multi-Layer Perceptron models from collected navigation logs using imitation learning",
+      "key_classes": [
+        "TrainerApp",
+        "NumpyMLP"
+      ],
+      "key_functions": [
+        "main",
+        "parse_logs",
+        "split_train_val"
+      ],
+      "entry_points": [
+        "train_mlp.py"
+      ]
+    },
+    {
+      "name": "Benchmark Utility",
+      "purpose": "Tool for generating benchmark maps and evaluating trained models on standardized scenarios",
+      "key_classes": [
+        "BenchmarkGui"
+      ],
+      "key_functions": [
+        "main",
+        "generate_benchmark_maps",
+        "evaluate_model_on_maps"
+      ],
+      "entry_points": [
+        "benchmark_gui.py"
+      ]
+    },
+    {
+      "name": "Simulation Core",
+      "purpose": "Shared physics and robot simulation logic used by both interactive and headless simulators",
+      "key_classes": [
+        "Robot"
+      ],
+      "key_functions": [
+        "generate_obstacles",
+        "generate_target"
+      ],
+      "entry_points": [
+        "sim_core.py"
+      ]
+    }
+  ],
+  "screen_candidates": [
+    {
+      "id": "utility_launcher",
+      "title": "Utility Launcher",
+      "purpose": "Central launcher providing one-click access to all main tools",
+      "importance": "high",
+      "construct_hint": "UtilityLauncher().run()",
+      "import_hint": "from UTILITY_LAUNCHER import UtilityLauncher",
+      "opens_from": "Direct execution (python UTILITY_LAUNCHER.py)",
+      "notable_widgets": [
+        "Open Simulator button",
+        "Open MLP Trainer button",
+        "Open Benchmark Utility button",
+        "Status display label"
+      ]
+    },
+    {
+      "id": "main_simulator",
+      "title": "Main Simulator",
+      "purpose": "Primary robot navigation simulator with visual feedback and controls",
+      "importance": "high",
+      "construct_hint": "SimulatorApp().run()",
+      "import_hint": "from simulator import SimulatorApp",
+      "opens_from": "Utility Launcher or direct execution",
+      "notable_widgets": [
+        "Run button (starts new episode)",
+        "Fail button (ends current episode)",
+        "Control mode radio buttons (heading_drive, xy_strafe, heading_strafe)",
+        "Input mode radio buttons (keyboard, gamepad, model)",
+        "Logging checkbox",
+        "Robot view checkbox",
+        "Preferences button",
+        "Simulation canvas (robot, obstacles, target display)",
+        "Whisker sensor display",
+        "Status information display"
+      ]
+    },
+    {
+      "id": "mlp_trainer",
+      "title": "MLP Trainer",
+      "purpose": "GUI for training imitation learning models from collected logs",
+      "importance": "high",
+      "construct_hint": "TrainerApp().run()",
+      "import_hint": "from train_mlp import TrainerApp",
+      "opens_from": "Utility Launcher or direct execution",
+      "notable_widgets": [
+        "Select Log Files button",
+        "Files status label",
+        "Hidden Width entry",
+        "Hidden Layers entry",
+        "Epochs entry",
+        "Batch Size entry",
+        "Learning Rate entry",
+        "Activation function radio buttons (ReLU, Tanh, Leaky ReLU)",
+        "Save Directory entry",
+        "Model Name entry",
+        "Train Models button",
+        "Status/console output area"
+      ]
+    },
+    {
+      "id": "benchmark_gui",
+      "title": "Benchmark Utility",
+      "purpose": "Tool for generating benchmark maps and evaluating trained models",
+      "importance": "medium",
+      "construct_hint": "BenchmarkGui().run()",
+      "import_hint": "from benchmark_gui import BenchmarkGui",
+      "opens_from": "Utility Launcher or direct execution",
+      "notable_widgets": [
+        "Benchmark folder entry",
+        "Browse folder button",
+        "Maps count spinbox",
+        "Min obstacles spinbox",
+        "Max obstacles spinbox",
+        "Base seed entry",
+        "Generate Maps button",
+        "Model file entry",
+        "Browse model button",
+        "Run Evaluation button",
+        "Progress bar",
+        "Results output area"
+      ]
+    },
+    {
+      "id": "simulator_preferences",
+      "title": "Simulator Preferences Panel",
+      "purpose": "Configuration panel for simulation parameters within the main simulator",
+      "importance": "low",
+      "construct_hint": "Opens from Preferences button in main simulator",
+      "import_hint": "Part of SimulatorApp class",
+      "opens_from": "Main Simulator Preferences button",
+      "notable_widgets": [
+        "History length slider",
+        "Logging interval slider",
+        "Sparse detection interval slider",
+        "Close button"
+      ]
+    }
+  ],
+  "data_flow_notes": "Data flows from simulator data collection (JSONL logs) → MLP trainer (parses logs, trains models) → trained models (JSON files) → benchmark utility (evaluates models). The simulator collects whisker sensor data, heading to target, and expert control actions. MLP trainer processes this into normalized features, trains neural networks, and outputs deployable models. Benchmark utility loads trained models and tests them on standardized scenarios, reporting success rates and performance metrics."
+}

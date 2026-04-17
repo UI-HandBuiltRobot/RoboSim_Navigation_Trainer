@@ -1,5 +1,5 @@
 {
-  "history_len": 10,
+  "history_len": 1,
   "active_log_rate_hz": 10.0,
   "min_turn_rate_dps": 2.0,
   "inner_deadband_dps": 2.0,
@@ -7,8 +7,8 @@
   "obstacle_count": 27,
   "vis_mode": "all",
   "input_mode": "model",
-  "logging_enabled": false,
+  "logging_enabled": true,
   "robot_aligned_view": true,
-  "control_mode": "heading_strafe",
+  "control_mode": "heading_drive",
   "place_against_wall": false
 }

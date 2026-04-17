@@ -28,7 +28,7 @@ For first-time users, we recommend starting with the simulator to understand the
 
 ---
 
-## Interactive Robot Control and Data Collection
+## Interactive robot control and data collection
 
 Learn to control the simulated robot and collect training data for imitation learning. This workflow covers basic navigation, understanding sensor inputs, and logging successful episodes.
 
@@ -63,17 +63,13 @@ Central launcher that provides one-click access to all main tools in the RoboSim
 
 **Labeled controls and displays:**
 
-1. **Title label** — Displays 'Launch a main utility' as the window title
+1. **Open Simulator button** — Launches the main robot navigation simulator for data collection
 
-2. **Instruction label** — Shows 'This opens each tool in its own Python process.'
+2. **Open MLP Trainer button** — Opens the MLP training interface for imitation learning
 
-3. **Open Simulator button** — Launches the main robot navigation simulator for data collection
+3. **Open Benchmark Utility button** — Starts the benchmark evaluation tool for model testing
 
-4. **Open MLP Trainer button** — Opens the MLP training interface for imitation learning
-
-5. **Open Benchmark Utility button** — Starts the benchmark evaluation tool for model testing
-
-The Utility Launcher is your starting point for the entire RoboSim system. Click **Open Simulator** (3) to begin controlling the robot and collecting data. Use **Open MLP Trainer** (4) to train imitation learning models from your collected logs. Select **Open Benchmark Utility** (5) to evaluate trained models on standardized scenarios. The status display (2) shows launch confirmation messages. All tools open in separate processes, allowing you to run multiple applications simultaneously.
+The Utility Launcher is your starting point for the entire RoboSim system. Click **Open Simulator** (1) to begin controlling the robot and collecting data. Use **Open MLP Trainer** (2) to train imitation learning models from your collected logs. Select **Open Benchmark Utility** (3) to evaluate trained models on standardized scenarios. The status display shows launch confirmation messages. All tools open in separate processes, allowing you to run multiple applications simultaneously.
 
 
 ### Main Simulator
@@ -96,19 +92,23 @@ Primary robot navigation simulator with visual feedback, data collection, and mo
 
 6. **Keyboard input radio** — Sets input mode to keyboard for manual control
 
-7. **Model input radio** — Sets input mode to model for autonomous policy execution
+7. **Gamepad input radio** — Sets input mode to gamepad if controller is connected
 
-8. **Logging checkbox** — Toggles data logging for successful navigation episodes
+8. **Model input radio** — Sets input mode to model for autonomous policy execution
 
-9. **Robot view checkbox** — Toggles between world-aligned and robot-aligned camera views
+9. **Logging checkbox** — Toggles data logging for successful navigation episodes
 
-10. **Preferences button** — Opens preferences panel for simulation parameter adjustment
+10. **Robot view checkbox** — Toggles between world-aligned and robot-aligned camera views
 
-The Main Simulator is where you control the robot and collect training data. Click **Run** (1) to start a new navigation episode in a room with randomly placed obstacles. Use **Fail** (2) to end the current episode. Select your control strategy with the radio buttons (3-5): **Heading** for forward/rotate control, **XY Strafe** for lateral movement, or **Heading+Strafe** for combined control. Choose input method with radio buttons (6-8): **Keyboard** for manual control, **Gamepad** if connected, or **Model** to use a trained policy. Enable **Logging** (9) to record successful episodes for training. Toggle **Robot View** (10) to switch between world-aligned and robot-aligned perspectives. Click **Preferences** (11) to adjust simulation parameters like history length and logging rate.
+11. **Preferences button** — Opens preferences panel for simulation parameter adjustment
+
+12. **Simulation canvas** — Displays robot, obstacles, target, whisker sensors, and navigation visualization
+
+The Main Simulator is where you control the robot and collect training data. Click **Run** (1) to start a new navigation episode in a room with randomly placed obstacles. Use **Fail** (2) to end the current episode. Select your control strategy with the radio buttons (3-5): **Heading** for forward/rotate control, **XY Strafe** for lateral movement, or **Heading+Strafe** for combined control. Choose input method with radio buttons (6-8): **Keyboard** for manual control, **Gamepad** if connected, or **Model** to use a trained policy. Enable **Logging** (9) to record successful episodes for training. Toggle **Robot View** (10) to switch between world-aligned and robot-aligned perspectives. Click **Preferences** (11) to adjust simulation parameters like history length and logging rate. The simulation canvas (12) shows the robot, obstacles, target, and sensor readings.
 
 ---
 
-## Training Imitation Learning Models
+## Training imitation learning models
 
 Train Multi-Layer Perceptron (MLP) models from collected navigation logs using imitation learning. This workflow covers data preparation, model configuration, and training execution.
 
@@ -133,27 +133,6 @@ Train Multi-Layer Perceptron (MLP) models from collected navigation logs using i
 9. Click **Train Models** (13) to begin training - progress will show in the status area
 
 10. Monitor training progress through the console output; models are saved automatically upon completion
-
-
-### Utility Launcher
-
-Central launcher that provides one-click access to all main tools in the RoboSim Navigation Trainer project.
-
-![Utility Launcher](images/utility_launcher.svg)
-
-**Labeled controls and displays:**
-
-1. **Title label** — Displays 'Launch a main utility' as the window title
-
-2. **Instruction label** — Shows 'This opens each tool in its own Python process.'
-
-3. **Open Simulator button** — Launches the main robot navigation simulator for data collection
-
-4. **Open MLP Trainer button** — Opens the MLP training interface for imitation learning
-
-5. **Open Benchmark Utility button** — Starts the benchmark evaluation tool for model testing
-
-The Utility Launcher is your starting point for the entire RoboSim system. Click **Open Simulator** (3) to begin controlling the robot and collecting data. Use **Open MLP Trainer** (4) to train imitation learning models from your collected logs. Select **Open Benchmark Utility** (5) to evaluate trained models on standardized scenarios. The status display (2) shows launch confirmation messages. All tools open in separate processes, allowing you to run multiple applications simultaneously.
 
 
 ### MLP Trainer
@@ -194,7 +173,7 @@ The MLP Trainer processes collected navigation logs to train imitation learning 
 
 ---
 
-## Evaluating Trained Models
+## Evaluating trained models
 
 Generate benchmark scenarios and evaluate trained models in standardized conditions for apples-to-apples performance comparison.
 
@@ -219,27 +198,6 @@ Generate benchmark scenarios and evaluate trained models in standardized conditi
 9. Compare different models by repeating evaluation with alternative model files
 
 10. Use consistent benchmark settings for fair comparison between different training runs or model architectures
-
-
-### Utility Launcher
-
-Central launcher that provides one-click access to all main tools in the RoboSim Navigation Trainer project.
-
-![Utility Launcher](images/utility_launcher.svg)
-
-**Labeled controls and displays:**
-
-1. **Title label** — Displays 'Launch a main utility' as the window title
-
-2. **Instruction label** — Shows 'This opens each tool in its own Python process.'
-
-3. **Open Simulator button** — Launches the main robot navigation simulator for data collection
-
-4. **Open MLP Trainer button** — Opens the MLP training interface for imitation learning
-
-5. **Open Benchmark Utility button** — Starts the benchmark evaluation tool for model testing
-
-The Utility Launcher is your starting point for the entire RoboSim system. Click **Open Simulator** (3) to begin controlling the robot and collecting data. Use **Open MLP Trainer** (4) to train imitation learning models from your collected logs. Select **Open Benchmark Utility** (5) to evaluate trained models on standardized scenarios. The status display (2) shows launch confirmation messages. All tools open in separate processes, allowing you to run multiple applications simultaneously.
 
 
 ### Benchmark Utility
