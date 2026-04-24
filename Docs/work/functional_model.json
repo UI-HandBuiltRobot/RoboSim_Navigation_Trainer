@@ -1,0 +1,268 @@
+{
+  "project_name": "RoboSim Navigation Trainer",
+  "one_line_summary": "A robot navigation simulator with IL/RL training tools for teaching robots to navigate using whisker sensors",
+  "audience": "Students and researchers learning robot navigation, imitation learning, and reinforcement learning",
+  "primary_workflows": [
+    "Launch the simulator, drive the robot using keyboard/gamepad, and generate training logs",
+    "Train an MLP neural network from simulator logs using imitation learning",
+    "Fine-tune the trained model using PPO reinforcement learning",
+    "Benchmark trained models on standardized maps to evaluate performance"
+  ],
+  "components": [
+    {
+      "name": "Utility Launcher",
+      "purpose": "Desktop hub that launches all RoboSim tools in separate processes",
+      "key_classes": [
+        "UtilityLauncher"
+      ],
+      "key_functions": [
+        "_launch_script"
+      ],
+      "entry_points": [
+        "UTILITY_LAUNCHER.py (__main__)"
+      ]
+    },
+    {
+      "name": "Simulator (simulator.py + sim_core.py)",
+      "purpose": "Pygame-based robot navigation simulator with real-time visualization, logging, and model inference",
+      "key_classes": [
+        "SimulatorApp",
+        "Robot"
+      ],
+      "key_functions": [
+        "main (simulator.py)",
+        "generate_obstacles",
+        "generate_target"
+      ],
+      "entry_points": [
+        "simulator.py (__main__)"
+      ]
+    },
+    {
+      "name": "MLP Trainer (train_mlp.py)",
+      "purpose": "Tkinter GUI for training multi-layer perceptron models from JSONL navigation logs using imitation learning",
+      "key_classes": [
+        "TrainerApp",
+        "NumpyMLP",
+        "Dataset"
+      ],
+      "key_functions": [
+        "parse_logs",
+        "split_train_val",
+        "main (train_mlp.py)"
+      ],
+      "entry_points": [
+        "train_mlp.py (__main__)"
+      ]
+    },
+    {
+      "name": "PPO Trainer (train_ppo.py)",
+      "purpose": "Tkinter GUI for fine-tuning navigation models using Proximal Policy Optimization with live training plots",
+      "key_classes": [
+        "TrainingGui",
+        "Trainer",
+        "ActorCritic"
+      ],
+      "key_functions": [
+        "main (train_ppo.py)",
+        "compute_gae",
+        "evaluate_policy_on_maps"
+      ],
+      "entry_points": [
+        "train_ppo.py (__main__)"
+      ]
+    },
+    {
+      "name": "Benchmark GUI (benchmark_gui.py)",
+      "purpose": "Tkinter tool for generating benchmark maps and evaluating model performance on standardized scenarios",
+      "key_classes": [
+        "BenchmarkGui"
+      ],
+      "key_functions": [
+        "generate_benchmark_maps",
+        "evaluate_model_on_maps",
+        "load_model_with_inferred_history"
+      ],
+      "entry_points": [
+        "benchmark_gui.py (__main__)"
+      ]
+    },
+    {
+      "name": "Headless Simulation (headless_sim.py, nav_env.py)",
+      "purpose": "Non-GUI simulation environment for training, compatible with OpenAI Gym interface",
+      "key_classes": [
+        "HeadlessSimulator",
+        "NavigationEnv"
+      ],
+      "key_functions": [],
+      "entry_points": []
+    }
+  ],
+  "screen_candidates": [
+    {
+      "id": "utility_launcher",
+      "title": "Utility Launcher",
+      "purpose": "Hub window for launching all RoboSim tools",
+      "importance": "high",
+      "construct_hint": "UtilityLauncher()",
+      "import_hint": "from UTILITY_LAUNCHER import UtilityLauncher",
+      "opens_from": "Direct launch",
+      "notable_widgets": [
+        "Open Simulator button",
+        "Open MLP Trainer button",
+        "Open Benchmark Utility button",
+        "Status label"
+      ]
+    },
+    {
+      "id": "simulator_main",
+      "title": "Simulator Main Window",
+      "purpose": "Pygame-based robot navigation simulation with real-time controls and data displays",
+      "importance": "high",
+      "construct_hint": "SimulatorApp()",
+      "import_hint": "from simulator import SimulatorApp",
+      "opens_from": "Utility Launcher or direct launch",
+      "notable_widgets": [
+        "Run button",
+        "Fail button",
+        "Obstacle count display",
+        "Obstacle +/- buttons",
+        "Logging checkbox",
+        "Robot-aligned view checkbox",
+        "Keyboard input radio",
+        "Gamepad input radio",
+        "Model input radio",
+        "Heading drive mode radio",
+        "XY strafe mode radio",
+        "Heading strafe mode radio",
+        "Model pick button",
+        "Model reload button",
+        "Episode counter display",
+        "Step counter display",
+        "Whisker readout panel",
+        "Target distance display",
+        "Collision indicator",
+        "Preferences button"
+      ]
+    },
+    {
+      "id": "simulator_prefs",
+      "title": "Simulator Preferences Dialog",
+      "purpose": "Settings dialog for history length, log rates, turn parameters, and visualization modes",
+      "importance": "medium",
+      "construct_hint": "SimulatorApp() then open prefs",
+      "import_hint": "from simulator import SimulatorApp",
+      "opens_from": "Simulator Main Window (Preferences button)",
+      "notable_widgets": [
+        "History length display",
+        "History +/- buttons",
+        "Log rate display",
+        "Log rate +/- buttons",
+        "Min turn rate display",
+        "Min turn +/- buttons",
+        "Inner deadband display",
+        "Deadband +/- buttons",
+        "Hysteresis band display",
+        "Hysteresis +/- buttons",
+        "Vis mode: All radio",
+        "Vis mode: Action radius radio",
+        "Vis mode: Detected radio",
+        "Vis mode: Sparse sensing radio",
+        "Place against wall checkbox",
+        "Close button"
+      ]
+    },
+    {
+      "id": "mlp_trainer",
+      "title": "MLP Trainer",
+      "purpose": "GUI for configuring and running imitation learning training on navigation logs",
+      "importance": "high",
+      "construct_hint": "TrainerApp()",
+      "import_hint": "from train_mlp import TrainerApp",
+      "opens_from": "Utility Launcher or direct launch",
+      "notable_widgets": [
+        "Select Log Files button",
+        "File count label",
+        "Hidden Width entry",
+        "Hidden Layers entry",
+        "Epochs entry",
+        "Batch Size entry",
+        "Learning Rate entry",
+        "ReLU radio",
+        "Tanh radio",
+        "Leaky ReLU radio",
+        "Save Dir entry",
+        "Browse (output) button",
+        "Model Name entry",
+        "Full Path preview",
+        "Train Models button",
+        "Status text area"
+      ]
+    },
+    {
+      "id": "ppo_trainer",
+      "title": "PPO Trainer",
+      "purpose": "GUI for PPO reinforcement learning fine-tuning with live metrics and plots",
+      "importance": "high",
+      "construct_hint": "TrainingGui()",
+      "import_hint": "from train_ppo import TrainingGui",
+      "opens_from": "Direct launch (no launcher integration yet)",
+      "notable_widgets": [
+        "Warm-start model entry",
+        "Browse (warm-start) button",
+        "Benchmark folder entry",
+        "Browse (benchmark) button",
+        "Output folder entry",
+        "Browse (output) button",
+        "Output filename stem entry",
+        "Parallel envs spinbox",
+        "Steps per env spinbox",
+        "Total iterations spinbox",
+        "LR actor entry",
+        "LR critic entry",
+        "Clip range entry",
+        "Epochs spinbox",
+        "Minibatch size spinbox",
+        "Obstacles min spinbox",
+        "Obstacles max spinbox",
+        "Base seed entry",
+        "Device combobox",
+        "Start button",
+        "Stop button",
+        "Status label",
+        "Iter value display",
+        "Mean reward display",
+        "Train success display",
+        "Baseline display",
+        "Best score display",
+        "Training progress plot"
+      ]
+    },
+    {
+      "id": "benchmark_gui",
+      "title": "Benchmark Evaluator",
+      "purpose": "GUI for generating benchmark maps and evaluating model performance",
+      "importance": "medium",
+      "construct_hint": "BenchmarkGui()",
+      "import_hint": "from benchmark_gui import BenchmarkGui",
+      "opens_from": "Utility Launcher or direct launch",
+      "notable_widgets": [
+        "Benchmark folder entry",
+        "Browse (benchmark) button",
+        "# maps spinbox",
+        "Obstacles min spinbox",
+        "Obstacles max spinbox",
+        "Base seed entry",
+        "Generate Benchmark Maps button",
+        "Model file entry",
+        "Browse (model) button",
+        "Run Evaluation button",
+        "Progress bar",
+        "Progress text",
+        "Results text area",
+        "Status label"
+      ]
+    }
+  ],
+  "data_flow_notes": "The simulator generates JSONL log files containing robot sensor data (whisker lengths, target bearings) and user actions. The MLP Trainer reads these logs to train neural network policies using imitation learning. The PPO Trainer can warm-start from IL models and fine-tune them using reinforcement learning with headless simulation. The Benchmark GUI evaluates trained models on standardized maps, producing success rates and navigation time metrics. Models are saved as JSON files with weights, biases, and normalization parameters."
+}

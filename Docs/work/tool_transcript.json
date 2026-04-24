@@ -1,0 +1,557 @@
+[
+  {
+    "i": 1,
+    "name": "detect_framework",
+    "args": {},
+    "result": "{\"framework\": \"tkinter\", \"confidence\": 1.0, \"all_scores\": {\"tkinter\": 1.0, \"pyqt\": 0.0, \"pygame\": 1.0, \"matlab\": 0.0, \"web\": 0.0, \"qt_cpp\": 0.0}}"
+  },
+  {
+    "i": 2,
+    "name": "project_overview",
+    "args": {},
+    "result": "{\n  \"root\": \"C:\\\\GITHUB Repos\\\\RoboSim_Navigation_Trainer\",\n  \"manifests\": {\n    \"requirements.txt\": [\n      \"requirements.txt\"\n    ]\n  },\n  \"top_level_dirs\": {\n    \".claude\": {\n      \"py_files\": 0,\n      \"subdirs\": 0\n    },\n    \"benchmark\": {\n      \"py_files\": 0,\n      \"subdirs\": 0\n    },\n    \"dagger_snapshots\": {\n      \"py_files\": 0,\n      \"subdirs\": 0\n    },\n    \"Docs\": {\n      \"py_files\": 5,\n      \"subdirs\": 0\n    },\n    \"Docs2\": {\n      \"py_files\": 6,\n      \"subdirs\": 0\n    },\n    \"Docs3\": {\n      \"py_files\": 0,\n      \"subdirs\": 0\n    },\n    \"images\": {\n      \"py_files\": 0,\n      \"subdirs\": 0\n    },\n    \"logs\": {\n      \"py_files\": 0,\n      \"subdirs\": 0\n    },\n    \"trained_models\": {\n      \"py_files\": 0,\n      \"subdirs\": 0\n    },\n    \"work\": {\n      \"py_files\": 5,\n      \"subdirs\": 0\n    }\n  },\n  \"python_files_total\": 24,\n  \"python_files_scanned\": 24,\n  \"python_files\": [\n    {\n      \"path\": \"benchmark_gui.py\",\n      \"lines\": 488,\n      \"classes\": [\n        {\n          \"name\": \"LoadedModel\",\n          \"line\": 28,\n          \"bases\": [],\n          \"method_count\": 0\n        },\n        {\n          \"name\": \"BenchmarkGui\",\n          \"line\": 282,\n          \"bases\": [],\n          \"method_count\": 11\n        }\n      ],\n      \"functions\": [\n        {\n          \"name\": \"_n_action_for_mode\",\n          \"line\": 35\n        },\n        {\n          \"name\": \"_history_from_dim\",\n          \"line\": 39\n        },\n        {\n          \"name\": \"_load_il_blob\",\n          \"line\": 49\n        },\n        {\n          \"name\": \"load_model_with_inferred_history\",\n          \"line\": 76\n        },\n        {\n          \"name\": \"_predict_il_physical\",\n          \"line\": 88\n        },\n        {\n          \"name\": \"_to_env_normalized_action\",\n          \"line\": 108\n        },\n        {\n          \"name\": \"_load_benchmark_maps\",\n          \"line\": 143\n        },\n        {\n          \"name\": \"generate_benchmark_maps\",\n          \"line\": 155\n        },\n        {\n          \"name\": \"evaluate_model_on_maps\",\n          \"line\": 211\n        }\n      ],\n      \"frameworks\": [\n        \"tkinter\"\n      ],\n      \"has_main_guard\": true,\n      \"has_main_func\": false,\n      \"import_count\": 20\n    },\n    {\n      \"path\": \"Docs/work/benchmark_main/driver.py\",\n      \"lines\": 493,\n      \"classes\": [],\n      \"functions\": [\n        {\n          \"name\": \"_classify\",\n          \"line\": 82\n        },\n        {\n          \"name\": \"_safe_text\",\n          \"line\": 92\n        },\n        {\n          \"name\": \"_callback_repr\",\n          \"line\": 108\n        },\n        {\n          \"name\": \"_target_window\",\n          \"line\": 118\n        },\n        {\n          \"name\": \"_walk\",\n          \"line\": 125\n        },\n        {\n          \"name\": \"_bring_to_front_win32\",\n          \"line\": 154\n        },\n        {\n          \"name\": \"_image_has_content\",\n          \"line\": 172\n        },\n        {\n          \"name\": \"_slug\",\n          \"line\": 190\n        },\n        {\n          \"name\": \"_enumerate_peer_toplevels\",\n          \"line\": 196\n        },\n        {\n          \"name\": \"_capture_one\",\n          \"line\": 249\n        },\n        {\n          \"name\": \"_hwnd_of\",\n          \"line\": 350\n        },\n        {\n          \"name\": \"main\",\n          \"line\": 362\n        }\n      ],\n      \"frameworks\": [\n        \"tkinter\"\n      ],\n      \"has_main_guard\": true,\n      \"has_main_func\": true,\n      \"import_count\": 22\n    },\n    {\n      \"path\": \"Docs/work/mlp_trainer_main/driver.py\",\n      \"lines\": 493,\n      \"classes\": [],\n      \"functions\": [\n        {\n          \"name\": \"_classify\",\n          \"line\": 82\n        },\n        {\n          \"name\": \"_safe_text\",\n          \"line\": 92\n        },\n        {\n          \"name\": \"_callback_repr\",\n          \"line\": 108\n        },\n        {\n          \"name\": \"_target_window\",\n          \"line\": 118\n        },\n        {\n          \"name\": \"_walk\",\n          \"line\": 125\n        },\n        {\n          \"name\": \"_bring_to_front_win32\",\n          \"line\": 154\n        },\n        {\n          \"name\": \"_image_has_content\",\n     ...[truncated]"
+  },
+  {
+    "i": 3,
+    "name": "find_entry_points",
+    "args": {},
+    "result": "{\n  \"scripts\": [],\n  \"package_xmls\": [],\n  \"main_guards\": [\n    {\n      \"file\": \"benchmark_gui.py\",\n      \"line\": 486,\n      \"module_guess\": \"benchmark_gui\"\n    },\n    {\n      \"file\": \"simulator.py\",\n      \"line\": 1976,\n      \"module_guess\": \"simulator\"\n    },\n    {\n      \"file\": \"train_mlp.py\",\n      \"line\": 1063,\n      \"module_guess\": \"train_mlp\"\n    },\n    {\n      \"file\": \"train_ppo.py\",\n      \"line\": 1692,\n      \"module_guess\": \"train_ppo\"\n    },\n    {\n      \"file\": \"UTILITY_LAUNCHER.py\",\n      \"line\": 81,\n      \"module_guess\": \"UTILITY_LAUNCHER\"\n    },\n    {\n      \"file\": \"work/benchmark_gui/driver.py\",\n      \"line\": 375,\n      \"module_guess\": \"work.benchmark_gui.driver\"\n    },\n    {\n      \"file\": \"work/main_simulator/driver.py\",\n      \"line\": 371,\n      \"module_guess\": \"work.main_simulator.driver\"\n    },\n    {\n      \"file\": \"work/mlp_trainer/driver.py\",\n      \"line\": 375,\n      \"module_guess\": \"work.mlp_trainer.driver\"\n    },\n    {\n      \"file\": \"work/ppo_trainer/driver.py\",\n      \"line\": 375,\n      \"module_guess\": \"work.ppo_trainer.driver\"\n    },\n    {\n      \"file\": \"work/utility_launcher/driver.py\",\n      \"line\": 375,\n      \"module_guess\": \"work.utility_launcher.driver\"\n    },\n    {\n      \"file\": \"Docs2/work/benchmark_gui/driver.py\",\n      \"line\": 491,\n      \"module_guess\": \"Docs2.work.benchmark_gui.driver\"\n    },\n    {\n      \"file\": \"Docs2/work/mlp_trainer/driver.py\",\n      \"line\": 491,\n      \"module_guess\": \"Docs2.work.mlp_trainer.driver\"\n    },\n    {\n      \"file\": \"Docs2/work/ppo_trainer/driver.py\",\n      \"line\": 491,\n      \"module_guess\": \"Docs2.work.ppo_trainer.driver\"\n    },\n    {\n      \"file\": \"Docs2/work/simulator_main/driver.py\",\n      \"line\": 373,\n      \"module_guess\": \"Docs2.work.simulator_main.driver\"\n    },\n    {\n      \"file\": \"Docs2/work/simulator_prefs/driver.py\",\n      \"line\": 373,\n      \"module_guess\": \"Docs2.work.simulator_prefs.driver\"\n    },\n    {\n      \"file\": \"Docs2/work/utility_launcher/driver.py\",\n      \"line\": 491,\n      \"module_guess\": \"Docs2.work.utility_launcher.driver\"\n    },\n    {\n      \"file\": \"Docs/work/benchmark_main/driver.py\",\n      \"line\": 491,\n      \"module_guess\": \"Docs.work.benchmark_main.driver\"\n    },\n    {\n      \"file\": \"Docs/work/mlp_trainer_main/driver.py\",\n      \"line\": 491,\n      \"module_guess\": \"Docs.work.mlp_trainer_main.driver\"\n    },\n    {\n      \"file\": \"Docs/work/ppo_trainer_main/driver.py\",\n      \"line\": 491,\n      \"module_guess\": \"Docs.work.ppo_trainer_main.driver\"\n    },\n    {\n      \"file\": \"Docs/work/simulator_main/driver.py\",\n      \"line\": 373,\n      \"module_guess\": \"Docs.work.simulator_main.driver\"\n    },\n    {\n      \"file\": \"Docs/work/utility_launcher_main/driver.py\",\n      \"line\": 491,\n      \"module_guess\": \"Docs.work.utility_launcher_main.driver\"\n    }\n  ],\n  \"summary\": {\n    \"script_count\": 0,\n    \"ros2_package_count\": 0,\n    \"main_guard_count\": 21\n  }\n}"
+  },
+  {
+    "i": 4,
+    "name": "read_file",
+    "args": {
+      "path": "UTILITY_LAUNCHER.py"
+    },
+    "result": "{\"path\": \"C:\\\\GITHUB Repos\\\\RoboSim_Navigation_Trainer\\\\UTILITY_LAUNCHER.py\", \"content\": \"\\\"\\\"\\\"Simple desktop launcher for primary RoboSim utilities.\\\"\\\"\\\"\\n\\nfrom __future__ import annotations\\n\\nimport subprocess\\nimport sys\\nimport tkinter as tk\\nfrom pathlib import Path\\nfrom tkinter import messagebox, ttk\\n\\n\\nclass UtilityLauncher:\\n    def __init__(self) -> None:\\n        self.root = tk.Tk()\\n        self.root.title(\\\"RoboSim Utility Launcher\\\")\\n        self.root.geometry(\\\"460x300\\\")\\n        self.root.resizable(False, False)\\n\\n        self.project_root = Path(__file__).resolve().parent\\n        self.status_var = tk.StringVar(value=\\\"Ready\\\")\\n\\n        self._build_ui()\\n\\n    def _build_ui(self) -> None:\\n        frame = ttk.Frame(self.root, padding=16)\\n        frame.pack(fill=tk.BOTH, expand=True)\\n\\n        ttk.Label(\\n            frame,\\n            text=\\\"Launch a main utility\\\",\\n            font=(\\\"Segoe UI\\\", 14, \\\"bold\\\"),\\n        ).pack(anchor=\\\"w\\\", pady=(0, 8))\\n\\n        ttk.Label(\\n            frame,\\n            text=\\\"This opens each tool in its own Python process.\\\",\\n        ).pack(anchor=\\\"w\\\", pady=(0, 14))\\n\\n        ttk.Button(\\n            frame,\\n            text=\\\"Open Simulator\\\",\\n            command=lambda: self._launch_script(\\\"simulator.py\\\"),\\n        ).pack(fill=\\\"x\\\", pady=4)\\n\\n        ttk.Button(\\n            frame,\\n            text=\\\"Open MLP Trainer\\\",\\n            command=lambda: self._launch_script(\\\"train_mlp.py\\\"),\\n        ).pack(fill=\\\"x\\\", pady=4)\\n\\n        ttk.Button(\\n            frame,\\n            text=\\\"Open Benchmark Utility\\\",\\n            command=lambda: self._launch_script(\\\"benchmark_gui.py\\\"),\\n        ).pack(fill=\\\"x\\\", pady=4)\\n\\n        ttk.Separator(frame, orient=\\\"horizontal\\\").pack(fill=\\\"x\\\", pady=14)\\n        ttk.Label(frame, textvariable=self.status_var).pack(anchor=\\\"w\\\")\\n\\n    def _launch_script(self, script_name: str) -> None:\\n        script_path = self.project_root / script_name\\n        if not script_path.exists():\\n            messagebox.showerror(\\\"Launch failed\\\", f\\\"Script not found: {script_name}\\\")\\n            self.status_var.set(f\\\"Missing script: {script_name}\\\")\\n            return\\n\\n        try:\\n            subprocess.Popen(\\n                [sys.executable, str(script_path)],\\n                cwd=str(self.project_root),\\n            )\\n            self.status_var.set(f\\\"Launched {script_name}\\\")\\n        except Exception as exc:\\n            messagebox.showerror(\\\"Launch failed\\\", str(exc))\\n            self.status_var.set(f\\\"Failed to launch {script_name}\\\")\\n\\n    def run(self) -> None:\\n        self.root.mainloop()\\n\\n\\nif __name__ == \\\"__main__\\\":\\n    UtilityLauncher().run()\\n\", \"start_line\": 1, \"end_line\": 82, \"total_lines\": 82, \"truncated\": false, \"read_sequence\": 1}"
+  },
+  {
+    "i": 5,
+    "name": "read_file",
+    "args": {
+      "path": "simulator.py",
+      "offset": 1,
+      "line_limit": 150
+    },
+    "result": "{\"path\": \"C:\\\\GITHUB Repos\\\\RoboSim_Navigation_Trainer\\\\simulator.py\", \"content\": \"import json\\nimport math\\nimport random\\nimport subprocess\\nimport sys\\nimport time\\nfrom collections import deque\\nfrom datetime import datetime\\nfrom pathlib import Path\\nfrom typing import Dict, List, Optional, Tuple\\n\\nimport numpy as np\\nimport pygame\\nfrom sim_core import (\\n    ROOM_HEIGHT,\\n    ROOM_WIDTH,\\n    TARGET_REACH_RADIUS,\\n    WHISKER_ANGLES,\\n    WHISKER_MAX_LENGTH,\\n    Robot,\\n    generate_obstacles,\\n    generate_target,\\n    generate_target_against_wall,\\n    generate_target_bbox_pose,\\n)\\n\\ntry:\\n    import tkinter as tk\\n    from tkinter import filedialog, messagebox\\nexcept Exception:\\n    tk = None\\n    filedialog = None\\n    messagebox = None\\n\\n\\n\\n    # Refactor verification: simulator runtime/UI behavior is intentionally preserved;\\n    # only shared simulation logic was moved into sim_core.py.\\n\\nVec2 = np.ndarray\\n\\n\\nclass SimulatorApp:\\n    BG_COLOR = (235, 236, 240)\\n    PANEL_COLOR = (248, 248, 250)\\n    ROOM_BG = (250, 250, 250)\\n    ROOM_BORDER = (40, 40, 40)\\n\\n    ROBOT_COLOR = (50, 90, 180)\\n    ROBOT_COLLIDE_COLOR = (230, 60, 60)\\n    WHEEL_COLOR = (20, 20, 20)\\n\\n    WHISKER_HIT_COLOR = (220, 40, 40)\\n    WHISKER_FREE_COLOR = (90, 90, 90)\\n\\n    TARGET_COLOR = (50, 180, 70)\\n    OBSTACLE_COLOR = (120, 120, 130)\\n\\n    FPS = 30\\n    GOAL_REACH_RADIUS_M = TARGET_REACH_RADIUS\\n\\n    def __init__(self) -> None:\\n        pygame.init()\\n        pygame.display.set_caption(\\\"RoboSim Navigation Trainer\\\")\\n\\n        pygame.joystick.init()\\n        self.joystick: Optional[pygame.joystick.Joystick] = None\\n        if pygame.joystick.get_count() > 0:\\n            self.joystick = pygame.joystick.Joystick(0)\\n            self.joystick.init()\\n\\n        self.input_mode = \\\"keyboard\\\"\\n\\n        self.min_window_w = 980\\n        self.min_window_h = 680\\n        self.window_w = 1280\\n        self.window_h = 760\\n        self.screen = pygame.display.set_mode((self.window_w, self.window_h), pygame.RESIZABLE)\\n        self.robot_aligned_view = True\\n\\n        self.clock = pygame.time.Clock()\\n        self.font = pygame.font.SysFont(\\\"consolas\\\", 20)\\n        self.small_font = pygame.font.SysFont(\\\"consolas\\\", 16)\\n        self.tooltip_font = pygame.font.SysFont(\\\"consolas\\\", 14)\\n        self.mouse_pos = (0, 0)\\n\\n        self.margin_px = 28\\n        self.toolbar_h = 152\\n        self.panel_w = 380\\n\\n        self.robot = Robot()\\n        self.rng = np.random.default_rng()\\n        self.prev_control_mode = self.robot.control_mode\\n        self.obstacles: List[Tuple[float, float, float]] = []\\n        self.target: Optional[Tuple[float, float, float]] = None\\n        self.target_bbox_pose: Dict[str, float] = {\\\"rotation_rad\\\": 0.0, \\\"offset_x\\\": 0.0, \\\"offset_y\\\": 0.0}\\n        self.whisker_segments: List[Tuple[Vec2, Vec2, bool]] = []\\n        self.collision_display_timer = 0.0\\n\\n        self.obstacle_count = random.randint(3, 10)\\n        self.logging_enabled = False\\n        self.active_log_rate_hz = 10.0\\n        self.sparse_tick_timer = 0.0\\n        self.min_turn_rate_dps = 0.0\\n        self.inner_deadband_dps = 0.0\\n        self.hysteresis_band_dps = 0.0\\n        self._hysteresis_state: Dict[str, bool] = {\\\"was_turning\\\": False}\\n        self.in_memory_log: List[Dict] = []\\n        self.log_timer = 0.0\\n        self.history_len = 1\\n        self.history_buffer = deque(maxlen=self.history_len)\\n        self.log_dir = Path.cwd() / \\\"logs\\\"\\n        self.log_dir.mkdir(exist_ok=True)\\n        existing = [\\n            int(m.group(1))\\n            for f in self.log_dir.glob(\\\"run_*.jsonl\\\")\\n            if (m := __import__(\\\"re\\\").match(r\\\"run_(\\\\d+)_\\\", f.name))\\n        ]\\n        self.run_counter = (max(existing) + 1) if existing else 0\\n\\n        self.model_dir = Path.cwd() / \\\"trained_models\\\"\\n        self.loaded_model: Optional[Dict[str, np.ndarray]] = None\\n        self.loaded_model_mode: Optional[str] = None\\n     ...[truncated]"
+  },
+  {
+    "i": 6,
+    "name": "read_file",
+    "args": {
+      "path": "train_mlp.py",
+      "offset": 520,
+      "line_limit": 100
+    },
+    "result": "{\"path\": \"C:\\\\GITHUB Repos\\\\RoboSim_Navigation_Trainer\\\\train_mlp.py\", \"content\": \"        return len(existing) + 1\\n\\n\\nclass TrainerApp:\\n    def __init__(self) -> None:\\n        self.root = tk.Tk()\\n        self.root.title(\\\"Navigation Log Trainer\\\")\\n        self.root.geometry(\\\"760x720\\\")\\n        self.root.minsize(760, 680)\\n        self.tooltips: List[ToolTip] = []\\n\\n        self.selected_files: List[str] = []\\n        self.output_dir = tk.StringVar(value=str(Path.cwd() / \\\"trained_models\\\"))\\n        self.model_name = tk.StringVar(value=\\\"\\\")\\n        self.hidden_width = tk.StringVar(value=\\\"64\\\")\\n        self.hidden_layers = tk.StringVar(value=\\\"2\\\")\\n        self.epochs = tk.StringVar(value=\\\"120\\\")\\n        self.batch_size = tk.StringVar(value=\\\"64\\\")\\n        self.learning_rate = tk.StringVar(value=\\\"0.001\\\")\\n        self.activation = tk.StringVar(value=\\\"relu\\\")\\n\\n        self._build_ui()\\n        self._refresh_path_preview()\\n        self.model_name.trace_add(\\\"write\\\", lambda *_: self._refresh_path_preview())\\n        self.output_dir.trace_add(\\\"write\\\", lambda *_: self._refresh_path_preview())\\n        # Force a full layout pass before the window becomes visible.\\n        # This prevents the Train button from being hidden by delayed redraws\\n        # on some platforms.\\n        self.root.update_idletasks()\\n        self.root.update()\\n\\n    def _build_ui(self) -> None:\\n        pad = {\\\"padx\\\": 8, \\\"pady\\\": 6}\\n\\n        file_frame = ttk.LabelFrame(self.root, text=\\\"Training Logs\\\")\\n        file_frame.pack(fill=\\\"x\\\", **pad)\\n\\n        select_btn = ttk.Button(file_frame, text=\\\"Select Log Files\\\", command=self.select_files)\\n        select_btn.grid(row=0, column=0, sticky=\\\"w\\\", **pad)\\n        self.file_label = ttk.Label(file_frame, text=\\\"No files selected\\\")\\n        self.file_label.grid(row=0, column=1, sticky=\\\"w\\\", **pad)\\n\\n        cfg_frame = ttk.LabelFrame(self.root, text=\\\"Model Settings\\\")\\n        cfg_frame.pack(fill=\\\"x\\\", **pad)\\n\\n        ttk.Label(cfg_frame, text=\\\"Hidden Width:\\\").grid(row=0, column=0, sticky=\\\"e\\\", **pad)\\n        hidden_width_entry = ttk.Entry(cfg_frame, textvariable=self.hidden_width, width=10)\\n        hidden_width_entry.grid(row=0, column=1, sticky=\\\"w\\\", **pad)\\n\\n        ttk.Label(cfg_frame, text=\\\"Hidden Layers:\\\").grid(row=0, column=2, sticky=\\\"e\\\", **pad)\\n        hidden_layers_entry = ttk.Entry(cfg_frame, textvariable=self.hidden_layers, width=10)\\n        hidden_layers_entry.grid(row=0, column=3, sticky=\\\"w\\\", **pad)\\n\\n        ttk.Label(cfg_frame, text=\\\"Epochs:\\\").grid(row=1, column=0, sticky=\\\"e\\\", **pad)\\n        epochs_entry = ttk.Entry(cfg_frame, textvariable=self.epochs, width=10)\\n        epochs_entry.grid(row=1, column=1, sticky=\\\"w\\\", **pad)\\n\\n        ttk.Label(cfg_frame, text=\\\"Batch Size:\\\").grid(row=1, column=2, sticky=\\\"e\\\", **pad)\\n        batch_size_entry = ttk.Entry(cfg_frame, textvariable=self.batch_size, width=10)\\n        batch_size_entry.grid(row=1, column=3, sticky=\\\"w\\\", **pad)\\n\\n        ttk.Label(cfg_frame, text=\\\"Learning Rate:\\\").grid(row=2, column=0, sticky=\\\"e\\\", **pad)\\n        learning_rate_entry = ttk.Entry(cfg_frame, textvariable=self.learning_rate, width=10)\\n        learning_rate_entry.grid(row=2, column=1, sticky=\\\"w\\\", **pad)\\n\\n        ttk.Label(cfg_frame, text=\\\"Activation:\\\").grid(row=3, column=0, sticky=\\\"e\\\", **pad)\\n        act_frame = ttk.Frame(cfg_frame)\\n        act_frame.grid(row=3, column=1, columnspan=3, sticky=\\\"w\\\")\\n        activation_radios: List[ttk.Radiobutton] = []\\n        for label, val in [(\\\"ReLU\\\", \\\"relu\\\"), (\\\"Tanh\\\", \\\"tanh\\\"), (\\\"Leaky ReLU\\\", \\\"leaky_relu\\\")]:\\n            rb = ttk.Radiobutton(act_frame, text=label, variable=self.activation, value=val)\\n            rb.pack(side=\\\"left\\\", padx=6)\\n            activation_radios.append(rb)\\n\\n        out_frame = ttk.LabelFrame(self.root, text=\\\"Output\\\")\\n        out_frame.pack(fill=\\\"x\\\", **pad)\\n\\n        ttk.Label(out_frame, text=\\\"Save Dir:\\\")...[truncated]"
+  },
+  {
+    "i": 7,
+    "name": "read_file",
+    "args": {
+      "path": "train_ppo.py",
+      "offset": 1040,
+      "line_limit": 100
+    },
+    "result": "{\"path\": \"C:\\\\GITHUB Repos\\\\RoboSim_Navigation_Trainer\\\\train_ppo.py\", \"content\": \"            i += 1\\n\\n\\n# --- Tk GUI ---------------------------------------------------------------\\n\\nclass TrainingGui:\\n    POLL_MS = 200\\n\\n    def __init__(self) -> None:\\n        self.root = tk.Tk()\\n        self.root.title(\\\"PPO Fine-tuning\\\")\\n        self.root.geometry(\\\"1100x780\\\")\\n\\n        repo_root = Path(__file__).parent\\n        self.warm_start_var = tk.StringVar(value=str(repo_root / \\\"trained_models\\\"))\\n        self.benchmark_dir_var = tk.StringVar(value=str(repo_root / \\\"benchmark\\\"))\\n        self.output_dir_var = tk.StringVar(value=str(repo_root / \\\"trained_models\\\"))\\n        self.output_stem_var = tk.StringVar(value=\\\"model_ppo\\\")\\n\\n        self.n_envs_var      = tk.IntVar(value=DEFAULT_HPARAMS[\\\"n_envs\\\"])\\n        self.n_steps_var     = tk.IntVar(value=DEFAULT_HPARAMS[\\\"n_steps\\\"])\\n        self.total_iters_var = tk.IntVar(value=DEFAULT_HPARAMS[\\\"total_iters\\\"])\\n        self.lr_actor_var    = tk.DoubleVar(value=DEFAULT_HPARAMS[\\\"lr_actor\\\"])\\n        self.lr_critic_var   = tk.DoubleVar(value=DEFAULT_HPARAMS[\\\"lr_critic\\\"])\\n        self.clip_range_var  = tk.DoubleVar(value=DEFAULT_HPARAMS[\\\"clip_range\\\"])\\n        self.epochs_var      = tk.IntVar(value=DEFAULT_HPARAMS[\\\"epochs\\\"])\\n        self.minibatch_var   = tk.IntVar(value=DEFAULT_HPARAMS[\\\"minibatch_size\\\"])\\n        self.eval_every_var  = tk.IntVar(value=DEFAULT_HPARAMS[\\\"eval_every\\\"])\\n        self.n_obstacles_min_var = tk.IntVar(value=3)\\n        self.n_obstacles_max_var = tk.IntVar(value=12)\\n        self.base_seed_var   = tk.IntVar(value=20260416)\\n        self.device_var      = tk.StringVar(value=\\\"cpu\\\")\\n\\n        self.status_var = tk.StringVar(value=\\\"Ready\\\")\\n        self.iter_var = tk.StringVar(value=\\\"-\\\")\\n        self.reward_var = tk.StringVar(value=\\\"-\\\")\\n        self.success_var = tk.StringVar(value=\\\"-\\\")\\n        self.baseline_var = tk.StringVar(value=\\\"-\\\")\\n        self.best_var = tk.StringVar(value=\\\"-\\\")\\n\\n        self.status_q: \\\"queue.Queue[StatusUpdate]\\\" = queue.Queue()\\n        self.stop_evt = threading.Event()\\n        self.thread: Optional[threading.Thread] = None\\n\\n        # Plot data.\\n        self.iters: List[int] = []\\n        self.rewards: List[float] = []\\n        self.rewards_ema: List[float] = []\\n        self.train_succ: List[float] = []\\n        self.eval_iters: List[int] = []\\n        self.eval_scores: List[float] = []\\n        self.eval_success_rates: List[float] = []\\n        self.baseline_score: Optional[float] = None\\n        self.baseline_success_rate: Optional[float] = None\\n        self.eval_time_mean: List[float] = []\\n        self.eval_time_best: List[float] = []\\n        self.baseline_time_mean: Optional[float] = None\\n        self.baseline_time_best: Optional[float] = None\\n        self.ema_alpha = 2.0 / (10.0 + 1.0)  # span ~= 10\\n\\n        self._build_ui()\\n        self.root.protocol(\\\"WM_DELETE_WINDOW\\\", self._on_close)\\n        self.root.after(self.POLL_MS, self._poll_status)\\n\\n    def _build_ui(self) -> None:\\n        pad = {\\\"padx\\\": 6, \\\"pady\\\": 4}\\n\\n        # --- Top: file paths ---\\n        top = ttk.LabelFrame(self.root, text=\\\"Inputs / Output\\\")\\n        top.pack(fill=\\\"x\\\", padx=10, pady=(10, 4))\\n\\n        def _row(parent, r, label, var, browse_cmd):\\n            ttk.Label(parent, text=label).grid(row=r, column=0, sticky=\\\"w\\\", **pad)\\n            ttk.Entry(parent, textvariable=var, width=70).grid(row=r, column=1, sticky=\\\"ew\\\", **pad)\\n            ttk.Button(parent, text=\\\"Browse\\\", command=browse_cmd).grid(row=r, column=2, **pad)\\n\\n        _row(top, 0, \\\"Warm-start IL model (.json)\\\", self.warm_start_var, self._pick_warm_start)\\n        _row(top, 1, \\\"Benchmark folder\\\",            self.benchmark_dir_var, self._pick_benchmark)\\n        _row(top, 2, \\\"Output folder\\\",               self.output_dir_var, self._pick_output_dir)\\n\\n        ttk.Label(top, text=\\\"Output filename stem\\\").grid(row...[truncated]"
+  },
+  {
+    "i": 8,
+    "name": "read_file",
+    "args": {
+      "line_limit": 100,
+      "offset": 1139,
+      "path": "train_ppo.py"
+    },
+    "result": "{\"path\": \"C:\\\\GITHUB Repos\\\\RoboSim_Navigation_Trainer\\\\train_ppo.py\", \"content\": \"\\n        ttk.Label(hp, text=\\\"LR actor\\\").grid(row=1, column=0, sticky=\\\"e\\\", **pad)\\n        ttk.Entry(hp, textvariable=self.lr_actor_var, width=10).grid(row=1, column=1, sticky=\\\"w\\\", **pad)\\n        ttk.Label(hp, text=\\\"LR critic\\\").grid(row=1, column=2, sticky=\\\"e\\\", **pad)\\n        ttk.Entry(hp, textvariable=self.lr_critic_var, width=10).grid(row=1, column=3, sticky=\\\"w\\\", **pad)\\n        ttk.Label(hp, text=\\\"Clip range\\\").grid(row=1, column=4, sticky=\\\"e\\\", **pad)\\n        ttk.Entry(hp, textvariable=self.clip_range_var, width=10).grid(row=1, column=5, sticky=\\\"w\\\", **pad)\\n        _spin(hp, 1, 6, \\\"Epochs\\\",            self.epochs_var,      1, 50)\\n\\n        _spin(hp, 2, 0, \\\"Minibatch size\\\",    self.minibatch_var,   16, 8192, 16)\\n        _spin(hp, 2, 2, \\\"Obstacles min\\\",     self.n_obstacles_min_var, 0, 200)\\n        _spin(hp, 2, 4, \\\"Obstacles max\\\",     self.n_obstacles_max_var, 0, 200)\\n        ttk.Label(hp, text=\\\"Base seed\\\").grid(row=2, column=6, sticky=\\\"e\\\", **pad)\\n        ttk.Entry(hp, textvariable=self.base_seed_var, width=10).grid(row=2, column=7, sticky=\\\"w\\\", **pad)\\n        ttk.Label(hp, text=\\\"Device\\\").grid(row=3, column=0, sticky=\\\"e\\\", **pad)\\n        ttk.Combobox(hp, textvariable=self.device_var,\\n                     values=[\\\"cpu\\\", \\\"cuda\\\"], width=8, state=\\\"readonly\\\").grid(\\n            row=3, column=1, sticky=\\\"w\\\", **pad)\\n        ttk.Button(hp, text=\\\"Check CUDA...\\\",\\n                   command=self._show_cuda_info).grid(\\n            row=3, column=2, sticky=\\\"w\\\", **pad)\\n\\n        # --- Controls + status row ---\\n        ctl = ttk.Frame(self.root)\\n        ctl.pack(fill=\\\"x\\\", padx=10, pady=(4, 6))\\n        self.start_btn = ttk.Button(ctl, text=\\\"Start\\\", command=self._on_start)\\n        self.start_btn.pack(side=\\\"left\\\", padx=(0, 6))\\n        self.stop_btn = ttk.Button(ctl, text=\\\"Stop\\\", command=self._on_stop, state=\\\"disabled\\\")\\n        self.stop_btn.pack(side=\\\"left\\\")\\n        ttk.Label(ctl, textvariable=self.status_var,\\n                  foreground=\\\"#444\\\").pack(side=\\\"left\\\", padx=12)\\n\\n        stats = ttk.Frame(self.root)\\n        stats.pack(fill=\\\"x\\\", padx=10)\\n        for col, (label, var) in enumerate([\\n            (\\\"iter:\\\", self.iter_var),\\n            (\\\"mean reward:\\\", self.reward_var),\\n            (\\\"train succ:\\\", self.success_var),\\n            (\\\"baseline:\\\", self.baseline_var),\\n            (\\\"best score:\\\", self.best_var),\\n        ]):\\n            ttk.Label(stats, text=label).grid(row=0, column=2 * col, sticky=\\\"e\\\", padx=(8, 2))\\n            ttk.Label(stats, textvariable=var, font=(\\\"TkDefaultFont\\\", 9, \\\"bold\\\")).grid(\\n                row=0, column=2 * col + 1, sticky=\\\"w\\\", padx=(0, 8))\\n        ttk.Button(stats, text=\\\"Explain metrics...\\\",\\n                   command=self._show_metrics_help).grid(\\n            row=0, column=2 * 5, sticky=\\\"e\\\", padx=(16, 0))\\n\\n        # --- Plot ---\\n        plot_frame = ttk.LabelFrame(self.root, text=\\\"Training progress\\\")\\n        plot_frame.pack(fill=\\\"both\\\", expand=True, padx=10, pady=(6, 4))\\n        self.fig = Figure(figsize=(8, 6.5), dpi=100)\\n        gs = GridSpec(3, 1, figure=self.fig, hspace=0.55)\\n        self.ax = self.fig.add_subplot(gs[0:2, 0])\\n        self.ax.tick_params(labelbottom=False)   # x labels live on the bottom plot\\n        self.ax.set_ylabel(\\\"mean episode reward (last 200 episodes)\\\", color=\\\"#1f77b4\\\")\\n        self.ax.tick_params(axis=\\\"y\\\", labelcolor=\\\"#1f77b4\\\")\\n        self.ax.grid(True, alpha=0.3)\\n        self.line_reward, = self.ax.plot(\\n            [], [], color=\\\"#1f77b4\\\", alpha=0.35, linewidth=1,\\n            label=\\\"mean episode reward\\\")\\n        self.line_reward_ema, = self.ax.plot(\\n            [], [], color=\\\"#1f77b4\\\", linewidth=2,\\n            label=\\\"mean episode reward (EMA)\\\")\\n\\n        # Right axis: rates in [0, 1].\\n        self.ax_rate = self.ax.twinx()\\n        self.ax_rate....[truncated]"
+  },
+  {
+    "i": 9,
+    "name": "read_file",
+    "args": {
+      "line_limit": 150,
+      "offset": 280,
+      "path": "benchmark_gui.py"
+    },
+    "result": "{\"path\": \"C:\\\\GITHUB Repos\\\\RoboSim_Navigation_Trainer\\\\benchmark_gui.py\", \"content\": \"\\n\\nclass BenchmarkGui:\\n    def __init__(self) -> None:\\n        self.root = tk.Tk()\\n        self.root.title(\\\"Benchmark Evaluator\\\")\\n        self.root.geometry(\\\"900x700\\\")\\n\\n        self.model_path_var = tk.StringVar(value=\\\"trained_models/model_heading_002.json\\\")\\n        self.benchmark_dir_var = tk.StringVar(value=\\\"benchmark\\\")\\n\\n        self.maps_count_var = tk.IntVar(value=100)\\n        self.min_obs_var = tk.IntVar(value=15)\\n        self.max_obs_var = tk.IntVar(value=35)\\n        self.seed_var = tk.IntVar(value=20260410)\\n        self.progress_var = tk.DoubleVar(value=0.0)\\n        self.progress_text_var = tk.StringVar(value=\\\"Progress: 0/0\\\")\\n\\n        self.status_var = tk.StringVar(value=\\\"Ready\\\")\\n        self._running = False\\n\\n        self._build_ui()\\n\\n    def _build_ui(self) -> None:\\n        pad = {\\\"padx\\\": 8, \\\"pady\\\": 6}\\n\\n        top = ttk.LabelFrame(self.root, text=\\\"Benchmark Setup\\\")\\n        top.pack(fill=\\\"x\\\", padx=10, pady=10)\\n\\n        ttk.Label(top, text=\\\"Benchmark folder\\\").grid(row=0, column=0, sticky=\\\"w\\\", **pad)\\n        ttk.Entry(top, textvariable=self.benchmark_dir_var, width=55).grid(row=0, column=1, sticky=\\\"ew\\\", **pad)\\n        ttk.Button(top, text=\\\"Browse\\\", command=self._pick_benchmark_folder).grid(row=0, column=2, **pad)\\n\\n        ttk.Label(top, text=\\\"# maps\\\").grid(row=2, column=0, sticky=\\\"w\\\", **pad)\\n        ttk.Spinbox(top, from_=1, to=5000, textvariable=self.maps_count_var, width=8).grid(row=2, column=1, sticky=\\\"w\\\", **pad)\\n\\n        ttk.Label(top, text=\\\"Obstacles min/max\\\").grid(row=3, column=0, sticky=\\\"w\\\", **pad)\\n        row3 = ttk.Frame(top)\\n        row3.grid(row=3, column=1, sticky=\\\"w\\\", **pad)\\n        ttk.Spinbox(row3, from_=0, to=200, textvariable=self.min_obs_var, width=8).pack(side=\\\"left\\\")\\n        ttk.Label(row3, text=\\\"to\\\").pack(side=\\\"left\\\", padx=6)\\n        ttk.Spinbox(row3, from_=0, to=200, textvariable=self.max_obs_var, width=8).pack(side=\\\"left\\\")\\n\\n        ttk.Label(top, text=\\\"Base seed\\\").grid(row=4, column=0, sticky=\\\"w\\\", **pad)\\n        ttk.Entry(top, textvariable=self.seed_var, width=14).grid(row=4, column=1, sticky=\\\"w\\\", **pad)\\n\\n        ttk.Button(top, text=\\\"Generate Benchmark Maps\\\", command=self._on_generate_maps).grid(\\n            row=5, column=0, columnspan=3, sticky=\\\"ew\\\", padx=8, pady=10\\n        )\\n\\n        top.columnconfigure(1, weight=1)\\n\\n        eval_frame = ttk.LabelFrame(self.root, text=\\\"Model Evaluation\\\")\\n        eval_frame.pack(fill=\\\"x\\\", padx=10, pady=6)\\n\\n        ttk.Label(eval_frame, text=\\\"Model file (.json)\\\").grid(row=0, column=0, sticky=\\\"w\\\", **pad)\\n        ttk.Entry(eval_frame, textvariable=self.model_path_var, width=55).grid(row=0, column=1, sticky=\\\"ew\\\", **pad)\\n        ttk.Button(eval_frame, text=\\\"Browse\\\", command=self._pick_model).grid(row=0, column=2, **pad)\\n\\n        ttk.Button(eval_frame, text=\\\"Run Evaluation\\\", command=self._on_run_eval).grid(\\n            row=1, column=0, columnspan=3, sticky=\\\"ew\\\", padx=8, pady=10\\n        )\\n\\n        self.progress_bar = ttk.Progressbar(\\n            eval_frame,\\n            orient=\\\"horizontal\\\",\\n            mode=\\\"determinate\\\",\\n            variable=self.progress_var,\\n            maximum=100.0,\\n        )\\n        self.progress_bar.grid(row=2, column=0, columnspan=3, sticky=\\\"ew\\\", padx=8, pady=(0, 6))\\n        ttk.Label(eval_frame, textvariable=self.progress_text_var, anchor=\\\"w\\\").grid(\\n            row=3, column=0, columnspan=3, sticky=\\\"ew\\\", padx=8, pady=(0, 8)\\n        )\\n\\n        eval_frame.columnconfigure(1, weight=1)\\n\\n        results_frame = ttk.LabelFrame(self.root, text=\\\"Results\\\")\\n        results_frame.pack(fill=\\\"both\\\", expand=True, padx=10, pady=6)\\n\\n        self.results_text = tk.Text(results_frame, wrap=\\\"word\\\", height=18)\\n        self.results_text.pack(fill=\\\"both\\\", expand=True, padx=8, pady=8)\\n        self.results_text.i...[truncated]"
+  },
+  {
+    "i": 10,
+    "name": "read_file",
+    "args": {
+      "line_limit": 200,
+      "offset": 150,
+      "path": "simulator.py"
+    },
+    "result": "{\"path\": \"C:\\\\GITHUB Repos\\\\RoboSim_Navigation_Trainer\\\\simulator.py\", \"content\": \"        if not prefs_existed:\\n            # Seed a defaults file so first launches leave a tracked config on disk.\\n            self._last_saved_prefs = None\\n            self._save_prefs_if_changed()\\n\\n        self.new_episode()\\n\\n    def _prefs_snapshot(self) -> Dict[str, object]:\\n        return {\\n            \\\"history_len\\\": int(self.history_len),\\n            \\\"active_log_rate_hz\\\": float(self.active_log_rate_hz),\\n            \\\"min_turn_rate_dps\\\": float(self.min_turn_rate_dps),\\n            \\\"inner_deadband_dps\\\": float(self.inner_deadband_dps),\\n            \\\"hysteresis_band_dps\\\": float(self.hysteresis_band_dps),\\n            \\\"obstacle_count\\\": int(self.obstacle_count),\\n            \\\"vis_mode\\\": str(self.vis_mode),\\n            \\\"input_mode\\\": str(self.input_mode),\\n            \\\"logging_enabled\\\": bool(self.logging_enabled),\\n            \\\"robot_aligned_view\\\": bool(self.robot_aligned_view),\\n            \\\"control_mode\\\": str(self.robot.control_mode),\\n            \\\"place_against_wall\\\": bool(self.place_against_wall),\\n        }\\n\\n    def _load_prefs(self) -> None:\\n        try:\\n            with open(self._prefs_path, \\\"r\\\", encoding=\\\"utf-8\\\") as f:\\n                data = json.load(f)\\n        except FileNotFoundError:\\n            return\\n        except Exception:\\n            return\\n        if not isinstance(data, dict):\\n            return\\n\\n        try:\\n            hl = int(data.get(\\\"history_len\\\", self.history_len))\\n            self.history_len = max(1, min(10, hl))\\n            self.history_buffer = deque(\\n                list(self.history_buffer)[-self.history_len:],\\n                maxlen=self.history_len,\\n            )\\n        except Exception:\\n            pass\\n        try:\\n            self.active_log_rate_hz = max(\\n                1.0, min(30.0, float(data.get(\\\"active_log_rate_hz\\\", self.active_log_rate_hz)))\\n            )\\n        except Exception:\\n            pass\\n        try:\\n            self.min_turn_rate_dps = max(\\n                0.0, min(39.0, float(data.get(\\\"min_turn_rate_dps\\\", self.min_turn_rate_dps)))\\n            )\\n        except Exception:\\n            pass\\n        try:\\n            self.inner_deadband_dps = max(\\n                0.0,\\n                min(self.min_turn_rate_dps, float(data.get(\\\"inner_deadband_dps\\\", self.inner_deadband_dps))),\\n            )\\n        except Exception:\\n            pass\\n        try:\\n            self.hysteresis_band_dps = max(\\n                0.0,\\n                min(self.min_turn_rate_dps, float(data.get(\\\"hysteresis_band_dps\\\", self.hysteresis_band_dps))),\\n            )\\n        except Exception:\\n            pass\\n        try:\\n            self.obstacle_count = max(1, min(50, int(data.get(\\\"obstacle_count\\\", self.obstacle_count))))\\n        except Exception:\\n            pass\\n        vm = str(data.get(\\\"vis_mode\\\", self.vis_mode))\\n        if vm in (\\\"all\\\", \\\"action_radius\\\", \\\"detected\\\", \\\"sparse_sensing\\\"):\\n            self.vis_mode = vm\\n        im = str(data.get(\\\"input_mode\\\", self.input_mode))\\n        if im in (\\\"keyboard\\\", \\\"gamepad\\\", \\\"model\\\"):\\n            self.input_mode = im\\n        if \\\"logging_enabled\\\" in data:\\n            self.logging_enabled = bool(data.get(\\\"logging_enabled\\\"))\\n        if \\\"robot_aligned_view\\\" in data:\\n            self.robot_aligned_view = bool(data.get(\\\"robot_aligned_view\\\"))\\n        cm = str(data.get(\\\"control_mode\\\", self.robot.control_mode))\\n        if cm in (\\\"heading_drive\\\", \\\"xy_strafe\\\", \\\"heading_strafe\\\"):\\n            self.robot.set_control_mode(cm)\\n            self.prev_control_mode = cm\\n        if \\\"place_against_wall\\\" in data:\\n            self.place_against_wall = bool(data.get(\\\"place_against_wall\\\"))\\n\\n    def _save_prefs_if_changed(self) -> None:\\n        current = self._prefs_snapshot()\\n        if current == getattr(self, \\\"_last_saved_prefs\\\", None):\\n            ret...[truncated]"
+  },
+  {
+    "i": 11,
+    "name": "read_file",
+    "args": {
+      "line_limit": 200,
+      "offset": 700,
+      "path": "simulator.py"
+    },
+    "result": "{\"path\": \"C:\\\\GITHUB Repos\\\\RoboSim_Navigation_Trainer\\\\simulator.py\", \"content\": \"        for _start, endpoint, hit in self.whisker_segments:\\n            if not hit:\\n                continue\\n            self.sparse_detection_points.append(\\n                {\\\"x\\\": float(endpoint[0]), \\\"y\\\": float(endpoint[1]), \\\"age\\\": 0}\\n            )\\n\\n    def _should_log(self) -> bool:\\n        \\\"\\\"\\\"Determine if logging should occur at all this frame.\\\"\\\"\\\"\\n        return self._current_log_interval() is not None\\n\\n    def _current_log_interval(self) -> Optional[float]:\\n        \\\"\\\"\\\"Return current logging interval in seconds based on scene context.\\n\\n        - active_log_rate_hz: obstacle in action radius and non-zero control input.\\n        - 10% of active_log_rate_hz: no obstacle in action radius.\\n        - None: logging disabled, or obstacle nearby with zero control input.\\n        \\\"\\\"\\\"\\n        if not self.logging_enabled:\\n            return None\\n\\n        obstacle_near = self._obstacle_within_action_radius()\\n        if obstacle_near and self._has_nonzero_input():\\n            return 1.0 / max(0.1, self.active_log_rate_hz)\\n        if not obstacle_near:\\n            return 10.0 / max(0.1, self.active_log_rate_hz)\\n        return None\\n\\n    def _any_whisker_hit(self) -> bool:\\n        \\\"\\\"\\\"True if any whisker is currently hitting something (obstacle/wall/target).\\\"\\\"\\\"\\n        for _s, _e, hit in self.whisker_segments:\\n            if hit:\\n                return True\\n        return False\\n\\n    def _current_sparse_interval(self) -> Optional[float]:\\n        \\\"\\\"\\\"Tick interval for sparse-sensing ghost points.\\n\\n        Mirrors the logging cadence context (fast near obstacles, slow in open\\n        space) but is gated on the operator having active control input rather\\n        than on logging_enabled \\u2014 so traces decay only while the user is\\n        driving, regardless of whether samples are being written to disk.\\n\\n        \\\"Active\\\" here is any live whisker contact \\u2014 obstacle, wall, or target \\u2014\\n        so wall hits trigger fast cadence and the white dot appears promptly.\\n        \\\"\\\"\\\"\\n        if not self._has_nonzero_input():\\n            return None\\n        if self._any_whisker_hit():\\n            return 1.0 / max(0.1, self.active_log_rate_hz)\\n        return 10.0 / max(0.1, self.active_log_rate_hz)\\n\\n    def _collect_log_entry(self) -> Dict:\\n        \\\"\\\"\\\"Collect a structured log row containing a fixed-length history window.\\\"\\\"\\\"\\n        mode = self.robot.control_mode\\n        self.history_buffer.append(self._capture_timestep_record(mode))\\n\\n        history = list(self.history_buffer)\\n        if history:\\n            pad_source = history[0]\\n            while len(history) < self.history_len:\\n                history.insert(0, self._state_pad_record(mode, pad_source))\\n\\n        return {\\n            \\\"schema_version\\\": 2,\\n            \\\"timestamp\\\": time.time(),\\n            \\\"mode\\\": mode,\\n            \\\"history_len\\\": self.history_len,\\n            \\\"active_log_rate_hz\\\": float(self.active_log_rate_hz),\\n            \\\"min_turn_rate_dps\\\": float(self.min_turn_rate_dps),\\n            \\\"inner_deadband_dps\\\": float(self.inner_deadband_dps),\\n            \\\"hysteresis_band_dps\\\": float(self.hysteresis_band_dps),\\n            \\\"history\\\": history,\\n        }\\n\\n    def _mode_suffix(self, mode: str) -> str:\\n        mode_map = {\\\"heading_drive\\\": \\\"heading\\\", \\\"xy_strafe\\\": \\\"strafe\\\", \\\"heading_strafe\\\": \\\"heading_strafe\\\"}\\n        return mode_map.get(mode, \\\"other\\\")\\n\\n    def _command_keys_for_mode(self, mode: str) -> List[str]:\\n        if mode == \\\"heading_drive\\\":\\n            return [\\\"drive_speed\\\", \\\"rotation_rate\\\"]\\n        if mode == \\\"heading_strafe\\\":\\n            return [\\\"rotation_rate\\\", \\\"vx\\\", \\\"vy\\\"]\\n        return [\\\"vx\\\", \\\"vy\\\"]\\n\\n    def _capture_timestep_record(self, mode: str) -> Dict:\\n        action_keys = self._command_keys_for_mode(mode)\\n        action = {k:...[truncated]"
+  },
+  {
+    "i": 12,
+    "name": "read_file",
+    "args": {
+      "line_limit": 100,
+      "offset": 620,
+      "path": "train_mlp.py"
+    },
+    "result": "{\"path\": \"C:\\\\GITHUB Repos\\\\RoboSim_Navigation_Trainer\\\\train_mlp.py\", \"content\": \"        status_frame.pack(fill=\\\"both\\\", expand=True, **pad)\\n\\n        self.status_text = tk.Text(status_frame, height=10, wrap=\\\"word\\\")\\n        self.status_text.pack(fill=\\\"both\\\", expand=True, padx=8, pady=8)\\n        self.status_text.configure(state=\\\"disabled\\\")\\n\\n        self.tooltips.extend(\\n            [\\n                ToolTip(select_btn, \\\"Choose one or more simulator .jsonl log files for training.\\\"),\\n                ToolTip(self.file_label, \\\"Shows how many log files are currently selected.\\\"),\\n                ToolTip(hidden_width_entry, \\\"Neurons per hidden layer. Larger values can fit more complex behavior.\\\"),\\n                ToolTip(hidden_layers_entry, \\\"Number of hidden layers in the policy network.\\\"),\\n                ToolTip(epochs_entry, \\\"Number of full training passes over the data.\\\"),\\n                ToolTip(batch_size_entry, \\\"Samples per optimization step.\\\"),\\n                ToolTip(learning_rate_entry, \\\"Step size for model updates during training.\\\"),\\n                ToolTip(output_dir_entry, \\\"Folder where trained model and metrics files are saved.\\\"),\\n                ToolTip(browse_btn, \\\"Pick the output folder for model artifacts.\\\"),\\n                ToolTip(\\n                    model_name_entry,\\n                    \\\"Optional custom stem for the saved files. Leave empty to auto-number as model_<mode>_NNN.json. \\\"\\n                    \\\"When multiple modes train in one run, the mode suffix is appended automatically.\\\",\\n                ),\\n                ToolTip(\\n                    path_preview_label,\\n                    \\\"Resolved save path(s) for the current model name and save directory.\\\",\\n                ),\\n                ToolTip(self.train_button, \\\"Start training models for all modes found in selected logs.\\\"),\\n                ToolTip(self.status_text, \\\"Live training progress, parsed data stats, and saved file paths.\\\"),\\n            ]\\n        )\\n        for rb in activation_radios:\\n            self.tooltips.append(ToolTip(rb, \\\"Activation function used in hidden layers.\\\"))\\n\\n    def log(self, msg: str) -> None:\\n        def _append() -> None:\\n            self.status_text.configure(state=\\\"normal\\\")\\n            self.status_text.insert(\\\"end\\\", msg + \\\"\\\\n\\\")\\n            self.status_text.see(\\\"end\\\")\\n            self.status_text.configure(state=\\\"disabled\\\")\\n\\n        self.root.after(0, _append)\\n\\n    def select_files(self) -> None:\\n        paths = filedialog.askopenfilenames(\\n            title=\\\"Select log files\\\",\\n            filetypes=[(\\\"JSON Lines\\\", \\\"*.jsonl\\\"), (\\\"All files\\\", \\\"*.*\\\")],\\n        )\\n        if paths:\\n            self.selected_files = list(paths)\\n            self.file_label.config(text=f\\\"{len(self.selected_files)} files selected\\\")\\n            self.log(f\\\"Selected {len(self.selected_files)} files\\\")\\n\\n    def choose_output_dir(self) -> None:\\n        path = filedialog.askdirectory(title=\\\"Select output directory\\\")\\n        if path:\\n            self.output_dir.set(path)\\n\\n    def _sanitize_model_stem(self, raw: str) -> str:\\n        stem = raw.strip()\\n        if stem.lower().endswith(\\\".json\\\"):\\n            stem = stem[:-5]\\n        bad = '<>:\\\"/\\\\\\\\|?*'\\n        return \\\"\\\".join(\\\"_\\\" if c in bad else c for c in stem)\\n\\n    def _resolve_model_paths(self, mode_suffix: str) -> Tuple[Path, Path]:\\n        output_dir = Path(self.output_dir.get())\\n        stem = self._sanitize_model_stem(self.model_name.get())\\n        if stem:\\n            base = f\\\"{stem}_{mode_suffix}\\\"\\n            return (\\n                output_dir / f\\\"model_{base}.json\\\",\\n                output_dir / f\\\"metrics_{base}.json\\\",\\n            )\\n        idx = next_index(output_dir, mode_suffix) if output_dir.exists() else 1\\n        return (\\n            output_dir / f\\\"model_{mode_suffix}_{idx:03d}.json\\\",\\n            output_dir / f\\\"metrics_{mode_suffix}_{idx:03d}...[truncated]"
+  },
+  {
+    "i": 13,
+    "name": "save_functional_model",
+    "args": {
+      "model_json": "{\n  \"project_name\": \"RoboSim Navigation Trainer\",\n  \"one_line_summary\": \"A robot navigation simulator with IL/RL training tools for teaching robots to navigate using whisker sensors\",\n  \"audience\": \"Students and researchers learning robot navigation, imitation learning, and reinforcement learning\",\n  \"primary_workflows\": [\n    \"Launch the simulator, drive the robot using keyboard/gamepad, and generate training logs\",\n    \"Train an MLP neural network from simulator logs using imitation learning\",...[truncated]"
+    },
+    "result": "{\"saved_to\": \"C:\\\\GITHUB Repos\\\\RoboSim_Navigation_Trainer\\\\Docs3\\\\work\\\\functional_model.json\", \"screen_candidate_count\": 6, \"component_count\": 6, \"screen_candidate_ids\": [\"utility_launcher\", \"simulator_main\", \"simulator_prefs\", \"mlp_trainer\", \"ppo_trainer\", \"benchmark_gui\"], \"next_step\": \"Functional model saved. Proceed immediately to Phase 3: for each screen_candidate (highest importance first), call render_driver_template then run_driver to capture it. Do not stop here.\"}"
+  },
+  {
+    "i": 14,
+    "name": "render_driver_template",
+    "args": {
+      "framework": "tkinter",
+      "screen_name": "utility_launcher",
+      "import_line": "from UTILITY_LAUNCHER import UtilityLauncher",
+      "construct": "app = UtilityLauncher(); app.root.update_idletasks(); app.root.update()"
+    },
+    "result": "{\"driver_path\": \"C:\\\\GITHUB Repos\\\\RoboSim_Navigation_Trainer\\\\Docs3\\\\work\\\\utility_launcher\\\\driver.py\", \"screen_dir\": \"C:\\\\GITHUB Repos\\\\RoboSim_Navigation_Trainer\\\\Docs3\\\\work\\\\utility_launcher\"}"
+  },
+  {
+    "i": 15,
+    "name": "run_driver",
+    "args": {
+      "screen_name": "utility_launcher"
+    },
+    "result": "{\"exit_code\": 0, \"stdout\": \"\", \"stderr\": \"\", \"widgets_json\": {\"screen_name\": \"utility_launcher\", \"image_width\": 464, \"image_height\": 300, \"scaling_factor\": 1.9999999999999998, \"origin_x\": 391, \"origin_y\": 425, \"foreground_ok\": false, \"widgets\": [{\"id\": \".!frame.!label\", \"cls\": \"Label\", \"text\": \"Launch a main utility\", \"x\": 407, \"y\": 441, \"w\": 280, \"h\": 42, \"callback\": null, \"role\": \"display\"}, {\"id\": \".!frame.!label2\", \"cls\": \"Label\", \"text\": \"This opens each tool in its own Python process.\", \"x\": 407, \"y\": 491, \"w\": 379, \"h\": 29, \"callback\": null, \"role\": \"display\"}, {\"id\": \".!frame.!button\", \"cls\": \"Button\", \"text\": \"Open Simulator\", \"x\": 407, \"y\": 538, \"w\": 432, \"h\": 35, \"callback\": \"1843861395904<lambda>\", \"role\": \"control\"}, {\"id\": \".!frame.!button2\", \"cls\": \"Button\", \"text\": \"Open MLP Trainer\", \"x\": 407, \"y\": 581, \"w\": 432, \"h\": 35, \"callback\": \"1843861473408<lambda>\", \"role\": \"control\"}, {\"id\": \".!frame.!button3\", \"cls\": \"Button\", \"text\": \"Open Benchmark Utility\", \"x\": 407, \"y\": 624, \"w\": 432, \"h\": 35, \"callback\": \"1843861476992<lambda>\", \"role\": \"control\"}]}, \"png_path\": \"C:\\\\GITHUB Repos\\\\RoboSim_Navigation_Trainer\\\\Docs3\\\\work\\\\utility_launcher\\\\screen.png\"}"
+  },
+  {
+    "i": 16,
+    "name": "render_driver_template",
+    "args": {
+      "framework": "pygame",
+      "screen_name": "simulator_main",
+      "import_line": "from simulator import SimulatorApp",
+      "construct": "app = SimulatorApp()",
+      "run_attr": "run",
+      "run_seconds": "1.0"
+    },
+    "result": "{\"driver_path\": \"C:\\\\GITHUB Repos\\\\RoboSim_Navigation_Trainer\\\\Docs3\\\\work\\\\simulator_main\\\\driver.py\", \"screen_dir\": \"C:\\\\GITHUB Repos\\\\RoboSim_Navigation_Trainer\\\\Docs3\\\\work\\\\simulator_main\"}"
+  },
+  {
+    "i": 17,
+    "name": "run_driver",
+    "args": {
+      "screen_name": "simulator_main"
+    },
+    "result": "{\"exit_code\": 0, \"stdout\": \"pygame-ce 2.5.7 (SDL 2.32.10, Python 3.12.10)\\n\", \"stderr\": \"\", \"widgets_json\": {\"screen_name\": \"simulator_main\", \"image_width\": 1280, \"image_height\": 760, \"scaling_factor\": 1.0, \"origin_x\": 0, \"origin_y\": 0, \"foreground_ok\": true, \"runtime_seconds\": 1.0, \"text_capture_enabled\": true, \"widgets\": [{\"id\": \"rect:checkbox_logging_rect\", \"cls\": \"PygameRect\", \"text\": \"checkbox logging\", \"x\": 922, \"y\": 47, \"w\": 18, \"h\": 18, \"role\": \"control\"}, {\"id\": \"rect:checkbox_robot_view_rect\", \"cls\": \"PygameRect\", \"text\": \"checkbox robot view\", \"x\": 1082, \"y\": 47, \"w\": 18, \"h\": 18, \"role\": \"control\"}, {\"id\": \"rect:fail_button_rect\", \"cls\": \"PygameRect\", \"text\": \"fail button\", \"x\": 160, \"y\": 38, \"w\": 110, \"h\": 36, \"role\": \"control\"}, {\"id\": \"rect:model_pick_rect\", \"cls\": \"PygameRect\", \"text\": \"model pick\", \"x\": 604, \"y\": 137, \"w\": 68, \"h\": 22, \"role\": \"display\"}, {\"id\": \"rect:model_reload_rect\", \"cls\": \"PygameRect\", \"text\": \"model reload\", \"x\": 682, \"y\": 137, \"w\": 72, \"h\": 22, \"role\": \"display\"}, {\"id\": \"rect:obs_minus_rect\", \"cls\": \"PygameRect\", \"text\": \"obs minus\", \"x\": 400, \"y\": 44, \"w\": 24, \"h\": 24, \"role\": \"display\"}, {\"id\": \"rect:obs_plus_rect\", \"cls\": \"PygameRect\", \"text\": \"obs plus\", \"x\": 470, \"y\": 44, \"w\": 24, \"h\": 24, \"role\": \"display\"}, {\"id\": \"rect:panel_rect\", \"cls\": \"PygameRect\", \"text\": \"panel\", \"x\": 832, \"y\": 208, \"w\": 420, \"h\": 524, \"role\": \"display\"}, {\"id\": \"rect:prefs_button_rect\", \"cls\": \"PygameRect\", \"text\": \"prefs button\", \"x\": 1162, \"y\": 90, \"w\": 80, \"h\": 24, \"role\": \"control\"}, {\"id\": \"rect:prefs_close_rect\", \"cls\": \"PygameRect\", \"text\": \"prefs close\", \"x\": 834, \"y\": 128, \"w\": 28, \"h\": 28, \"role\": \"display\"}, {\"id\": \"rect:prefs_hist_minus_rect\", \"cls\": \"PygameRect\", \"text\": \"prefs hist minus\", \"x\": 614, \"y\": 180, \"w\": 24, \"h\": 24, \"role\": \"display\"}, {\"id\": \"rect:prefs_hist_plus_rect\", \"cls\": \"PygameRect\", \"text\": \"prefs hist plus\", \"x\": 684, \"y\": 180, \"w\": 24, \"h\": 24, \"role\": \"display\"}, {\"id\": \"rect:prefs_hyst_minus_rect\", \"cls\": \"PygameRect\", \"text\": \"prefs hyst minus\", \"x\": 614, \"y\": 380, \"w\": 24, \"h\": 24, \"role\": \"display\"}, {\"id\": \"rect:prefs_hyst_plus_rect\", \"cls\": \"PygameRect\", \"text\": \"prefs hyst plus\", \"x\": 684, \"y\": 380, \"w\": 24, \"h\": 24, \"role\": \"display\"}, {\"id\": \"rect:prefs_inner_db_minus_rect\", \"cls\": \"PygameRect\", \"text\": \"prefs inner db minus\", \"x\": 614, \"y\": 330, \"w\": 24, \"h\": 24, \"role\": \"display\"}, {\"id\": \"rect:prefs_inner_db_plus_rect\", \"cls\": \"PygameRect\", \"text\": \"prefs inner db plus\", \"x\": 684, \"y\": 330, \"w\": 24, \"h\": 24, \"role\": \"display\"}, {\"id\": \"rect:prefs_min_turn_minus_rect\", \"cls\": \"PygameRect\", \"text\": \"prefs min turn minus\", \"x\": 614, \"y\": 280, \"w\": 24, \"h\": 24, \"role\": \"display\"}, {\"id\": \"rect:prefs_min_turn_plus_rect\", \"cls\": \"PygameRect\", \"text\": \"prefs min turn plus\", \"x\": 684, \"y\": 280, \"w\": 24, \"h\": 24, \"role\": \"display\"}, {\"id\": \"rect:prefs_place_wall_rect\", \"cls\": \"PygameRect\", \"text\": \"prefs place wall\", \"x\": 444, \"y\": 605, \"w\": 18, \"h\": 18, \"role\": \"display\"}, {\"id\": \"rect:prefs_rate_minus_rect\", \"cls\": \"PygameRect\", \"text\": \"prefs rate minus\", \"x\": 614, \"y\": 230, \"w\": 24, \"h\": 24, \"role\": \"display\"}, {\"id\": \"rect:prefs_rate_plus_rect\", \"cls\": \"PygameRect\", \"text\": \"prefs rate plus\", \"x\": 684, \"y\": 230, \"w\": 24, \"h\": 24, \"role\": \"display\"}, {\"id\": \"rect:prefs_rect\", \"cls\": \"PygameRect\", \"text\": \"prefs\", \"x\": 410, \"y\": 120, \"w\": 460, \"h\": 520, \"role\": \"display\"}, {\"id\": \"rect:prefs_vis_all_rect\", \"cls\": \"PygameRect\", \"text\": \"prefs vis all\", \"x\": 444, \"y\": 440, \"w\": 18, \"h\": 18, \"role\": \"display\"}, {\"id\": \"rect:prefs_vis_detect_rect\", \"cls\": \"PygameRect\", \"text\": \"prefs vis detect\", \"x\": 444, \"y\": 510, \"w\": 18, \"h\": 18, \"role\": \"display\"}, {\"id\": \"rect:prefs_vis_radius_rect\", \"cls\": \"PygameRect\", \"text\": \"prefs vis radius\", \"x\": 444, \"y\": 475, \"w\": 18, \"h\": 18, \"role\": \"display\"}, {\"id\": \"rect:prefs_vis_sparse_rect\", \"cls\": \"PygameRect\", \"text\": \"prefs vis sparse\", \"x\": 444, \"y\": 545, \"w\": 18, \"h\": 18, \"role\": \"display\"}, {\"id\": \"rect:radio_gamepad_re...[truncated]"
+  },
+  {
+    "i": 18,
+    "name": "render_driver_template",
+    "args": {
+      "framework": "tkinter",
+      "screen_name": "mlp_trainer",
+      "import_line": "from train_mlp import TrainerApp",
+      "construct": "app = TrainerApp(); app.root.update_idletasks(); app.root.update()"
+    },
+    "result": "{\"driver_path\": \"C:\\\\GITHUB Repos\\\\RoboSim_Navigation_Trainer\\\\Docs3\\\\work\\\\mlp_trainer\\\\driver.py\", \"screen_dir\": \"C:\\\\GITHUB Repos\\\\RoboSim_Navigation_Trainer\\\\Docs3\\\\work\\\\mlp_trainer\"}"
+  },
+  {
+    "i": 19,
+    "name": "run_driver",
+    "args": {
+      "screen_name": "mlp_trainer"
+    },
+    "result": "{\"exit_code\": 0, \"stdout\": \"\", \"stderr\": \"\", \"widgets_json\": {\"screen_name\": \"mlp_trainer\", \"image_width\": 887, \"image_height\": 720, \"scaling_factor\": 1.9999999999999998, \"origin_x\": 87, \"origin_y\": 121, \"foreground_ok\": false, \"widgets\": [{\"id\": \".!labelframe.!button\", \"cls\": \"Button\", \"text\": \"Select Log Files\", \"x\": 105, \"y\": 160, \"w\": 130, \"h\": 35, \"callback\": \"2181815671360select_files\", \"role\": \"control\"}, {\"id\": \".!labelframe.!label\", \"cls\": \"Label\", \"text\": \"No files selected\", \"x\": 251, \"y\": 163, \"w\": 133, \"h\": 29, \"callback\": null, \"role\": \"display\"}, {\"id\": \".!labelframe2.!label\", \"cls\": \"Label\", \"text\": \"Hidden Width:\", \"x\": 105, \"y\": 249, \"w\": 119, \"h\": 29, \"callback\": null, \"role\": \"display\"}, {\"id\": \".!labelframe2.!entry\", \"cls\": \"Entry\", \"text\": null, \"x\": 240, \"y\": 248, \"w\": 106, \"h\": 31, \"callback\": null, \"role\": \"control\"}, {\"id\": \".!labelframe2.!label2\", \"cls\": \"Label\", \"text\": \"Hidden Layers:\", \"x\": 362, \"y\": 249, \"w\": 120, \"h\": 29, \"callback\": null, \"role\": \"display\"}, {\"id\": \".!labelframe2.!entry2\", \"cls\": \"Entry\", \"text\": null, \"x\": 498, \"y\": 248, \"w\": 106, \"h\": 31, \"callback\": null, \"role\": \"control\"}, {\"id\": \".!labelframe2.!label3\", \"cls\": \"Label\", \"text\": \"Epochs:\", \"x\": 159, \"y\": 292, \"w\": 65, \"h\": 29, \"callback\": null, \"role\": \"display\"}, {\"id\": \".!labelframe2.!entry3\", \"cls\": \"Entry\", \"text\": null, \"x\": 240, \"y\": 291, \"w\": 106, \"h\": 31, \"callback\": null, \"role\": \"control\"}, {\"id\": \".!labelframe2.!label4\", \"cls\": \"Label\", \"text\": \"Batch Size:\", \"x\": 395, \"y\": 292, \"w\": 87, \"h\": 29, \"callback\": null, \"role\": \"display\"}, {\"id\": \".!labelframe2.!entry4\", \"cls\": \"Entry\", \"text\": null, \"x\": 498, \"y\": 291, \"w\": 106, \"h\": 31, \"callback\": null, \"role\": \"control\"}, {\"id\": \".!labelframe2.!label5\", \"cls\": \"Label\", \"text\": \"Learning Rate:\", \"x\": 109, \"y\": 335, \"w\": 115, \"h\": 29, \"callback\": null, \"role\": \"display\"}, {\"id\": \".!labelframe2.!entry5\", \"cls\": \"Entry\", \"text\": null, \"x\": 240, \"y\": 334, \"w\": 106, \"h\": 31, \"callback\": null, \"role\": \"control\"}, {\"id\": \".!labelframe2.!label6\", \"cls\": \"Label\", \"text\": \"Activation:\", \"x\": 137, \"y\": 377, \"w\": 87, \"h\": 29, \"callback\": null, \"role\": \"display\"}, {\"id\": \".!labelframe2.!frame.!radiobutton\", \"cls\": \"Radiobutton\", \"text\": \"ReLU\", \"x\": 238, \"y\": 376, \"w\": 70, \"h\": 31, \"callback\": null, \"role\": \"control\"}, {\"id\": \".!labelframe2.!frame.!radiobutton2\", \"cls\": \"Radiobutton\", \"text\": \"Tanh\", \"x\": 320, \"y\": 376, \"w\": 68, \"h\": 31, \"callback\": null, \"role\": \"control\"}, {\"id\": \".!labelframe2.!frame.!radiobutton3\", \"cls\": \"Radiobutton\", \"text\": \"Leaky ReLU\", \"x\": 400, \"y\": 376, \"w\": 119, \"h\": 31, \"callback\": null, \"role\": \"control\"}, {\"id\": \".!labelframe3.!label\", \"cls\": \"Label\", \"text\": \"Save Dir:\", \"x\": 143, \"y\": 462, \"w\": 73, \"h\": 29, \"callback\": null, \"role\": \"display\"}, {\"id\": \".!labelframe3.!entry\", \"cls\": \"Entry\", \"text\": null, \"x\": 232, \"y\": 461, \"w\": 586, \"h\": 31, \"callback\": null, \"role\": \"control\"}, {\"id\": \".!labelframe3.!button\", \"cls\": \"Button\", \"text\": \"Browse\", \"x\": 834, \"y\": 459, \"w\": 120, \"h\": 35, \"callback\": \"2181817468032choose_output_dir\", \"role\": \"control\"}, {\"id\": \".!labelframe3.!label2\", \"cls\": \"Label\", \"text\": \"Model Name:\", \"x\": 105, \"y\": 507, \"w\": 111, \"h\": 29, \"callback\": null, \"role\": \"display\"}, {\"id\": \".!labelframe3.!entry2\", \"cls\": \"Entry\", \"text\": null, \"x\": 232, \"y\": 506, \"w\": 586, \"h\": 31, \"callback\": null, \"role\": \"control\"}, {\"id\": \".!labelframe3.!label3\", \"cls\": \"Label\", \"text\": \"Full Path:\", \"x\": 141, \"y\": 549, \"w\": 75, \"h\": 29, \"callback\": null, \"role\": \"display\"}, {\"id\": \".!frame.!button\", \"cls\": \"Button\", \"text\": \"Train Models\", \"x\": 103, \"y\": 598, \"w\": 120, \"h\": 35, \"callback\": \"2181817466944start_training\", \"role\": \"control\"}]}, \"png_path\": \"C:\\\\GITHUB Repos\\\\RoboSim_Navigation_Trainer\\\\Docs3\\\\work\\\\mlp_trainer\\\\screen.png\"}"
+  },
+  {
+    "i": 20,
+    "name": "render_driver_template",
+    "args": {
+      "framework": "tkinter",
+      "screen_name": "ppo_trainer",
+      "import_line": "from train_ppo import TrainingGui",
+      "construct": "app = TrainingGui(); app.root.update_idletasks(); app.root.update()"
+    },
+    "result": "{\"driver_path\": \"C:\\\\GITHUB Repos\\\\RoboSim_Navigation_Trainer\\\\Docs3\\\\work\\\\ppo_trainer\\\\driver.py\", \"screen_dir\": \"C:\\\\GITHUB Repos\\\\RoboSim_Navigation_Trainer\\\\Docs3\\\\work\\\\ppo_trainer\"}"
+  },
+  {
+    "i": 21,
+    "name": "run_driver",
+    "args": {
+      "screen_name": "ppo_trainer"
+    },
+    "result": "{\"exit_code\": 0, \"stdout\": \"pygame-ce 2.5.7 (SDL 2.32.10, Python 3.12.10)\\n\", \"stderr\": \"C:\\\\GITHUB Repos\\\\RoboSim_Navigation_Trainer\\\\Docs3\\\\work\\\\ppo_trainer\\\\driver.py:391: FutureWarning: `torch.distributed.reduce_op` is deprecated, please use `torch.distributed.ReduceOp` instead\\n  if isinstance(obj, tk.Tk) and obj is not root:\\n\", \"widgets_json\": {\"screen_name\": \"ppo_trainer\", \"image_width\": 1108, \"image_height\": 794, \"scaling_factor\": 1.9999999999999998, \"origin_x\": 201, \"origin_y\": 235, \"foreground_ok\": false, \"widgets\": [{\"id\": \".!labelframe.!label\", \"cls\": \"Label\", \"text\": \"Warm-start IL model (.json)\", \"x\": 219, \"y\": 279, \"w\": 220, \"h\": 29, \"callback\": null, \"role\": \"display\"}, {\"id\": \".!labelframe.!entry\", \"cls\": \"Entry\", \"text\": null, \"x\": 451, \"y\": 278, \"w\": 708, \"h\": 31, \"callback\": null, \"role\": \"control\"}, {\"id\": \".!labelframe.!button\", \"cls\": \"Button\", \"text\": \"Browse\", \"x\": 1171, \"y\": 276, \"w\": 120, \"h\": 35, \"callback\": \"2411507092352_pick_warm_start\", \"role\": \"control\"}, {\"id\": \".!labelframe.!label2\", \"cls\": \"Label\", \"text\": \"Benchmark folder\", \"x\": 219, \"y\": 322, \"w\": 143, \"h\": 29, \"callback\": null, \"role\": \"display\"}, {\"id\": \".!labelframe.!entry2\", \"cls\": \"Entry\", \"text\": null, \"x\": 451, \"y\": 321, \"w\": 708, \"h\": 31, \"callback\": null, \"role\": \"control\"}, {\"id\": \".!labelframe.!button2\", \"cls\": \"Button\", \"text\": \"Browse\", \"x\": 1171, \"y\": 319, \"w\": 120, \"h\": 35, \"callback\": \"2411523858560_pick_benchmark\", \"role\": \"control\"}, {\"id\": \".!labelframe.!label3\", \"cls\": \"Label\", \"text\": \"Output folder\", \"x\": 219, \"y\": 365, \"w\": 113, \"h\": 29, \"callback\": null, \"role\": \"display\"}, {\"id\": \".!labelframe.!entry3\", \"cls\": \"Entry\", \"text\": null, \"x\": 451, \"y\": 364, \"w\": 708, \"h\": 31, \"callback\": null, \"role\": \"control\"}, {\"id\": \".!labelframe.!button3\", \"cls\": \"Button\", \"text\": \"Browse\", \"x\": 1171, \"y\": 362, \"w\": 120, \"h\": 35, \"callback\": \"2411524329984_pick_output_dir\", \"role\": \"control\"}, {\"id\": \".!labelframe.!label4\", \"cls\": \"Label\", \"text\": \"Output filename stem\", \"x\": 219, \"y\": 406, \"w\": 177, \"h\": 29, \"callback\": null, \"role\": \"display\"}, {\"id\": \".!labelframe.!entry4\", \"cls\": \"Entry\", \"text\": null, \"x\": 451, \"y\": 405, \"w\": 306, \"h\": 31, \"callback\": null, \"role\": \"control\"}, {\"id\": \".!labelframe2.!label\", \"cls\": \"Label\", \"text\": \"Parallel envs\", \"x\": 235, \"y\": 481, \"w\": 100, \"h\": 29, \"callback\": null, \"role\": \"display\"}, {\"id\": \".!labelframe2.!spinbox\", \"cls\": \"Spinbox\", \"text\": null, \"x\": 347, \"y\": 481, \"w\": 119, \"h\": 30, \"callback\": null, \"role\": \"control\"}, {\"id\": \".!labelframe2.!label2\", \"cls\": \"Label\", \"text\": \"Steps per env\", \"x\": 488, \"y\": 481, \"w\": 112, \"h\": 29, \"callback\": null, \"role\": \"display\"}, {\"id\": \".!labelframe2.!spinbox2\", \"cls\": \"Spinbox\", \"text\": null, \"x\": 612, \"y\": 481, \"w\": 119, \"h\": 30, \"callback\": null, \"role\": \"control\"}, {\"id\": \".!labelframe2.!label3\", \"cls\": \"Label\", \"text\": \"Total iterations\", \"x\": 743, \"y\": 481, \"w\": 121, \"h\": 29, \"callback\": null, \"role\": \"display\"}, {\"id\": \".!labelframe2.!spinbox3\", \"cls\": \"Spinbox\", \"text\": null, \"x\": 876, \"y\": 481, \"w\": 119, \"h\": 30, \"callback\": null, \"role\": \"control\"}, {\"id\": \".!labelframe2.!label4\", \"cls\": \"Label\", \"text\": \"Eval every (iters)\", \"x\": 1007, \"y\": 481, \"w\": 130, \"h\": 29, \"callback\": null, \"role\": \"display\"}, {\"id\": \".!labelframe2.!spinbox4\", \"cls\": \"Spinbox\", \"text\": null, \"x\": 1149, \"y\": 481, \"w\": 119, \"h\": 30, \"callback\": null, \"role\": \"control\"}, {\"id\": \".!labelframe2.!label5\", \"cls\": \"Label\", \"text\": \"LR actor\", \"x\": 267, \"y\": 520, \"w\": 68, \"h\": 29, \"callback\": null, \"role\": \"display\"}, {\"id\": \".!labelframe2.!entry\", \"cls\": \"Entry\", \"text\": null, \"x\": 347, \"y\": 519, \"w\": 106, \"h\": 31, \"callback\": null, \"role\": \"control\"}, {\"id\": \".!labelframe2.!label6\", \"cls\": \"Label\", \"text\": \"LR critic\", \"x\": 536, \"y\": 520, \"w\": 64, \"h\": 29, \"callback\": null, \"role\": \"display\"}, {\"id\": \".!labelframe2.!entry2\", \"cls\": \"Entry\", \"text\": null, \"x\": 612, \"y\": 519, \"w\": 106, \"h\": 31, \"callback\": null, \"role\": \"control\"}, {\"id\": \".!labelframe2.!label7\", \"cl...[truncated]"
+  },
+  {
+    "i": 22,
+    "name": "render_screen_svg",
+    "args": {
+      "ordered_widget_ids": [
+        ".!frame.!button",
+        ".!frame.!button2",
+        ".!frame.!button3"
+      ],
+      "screen_name": "utility_launcher"
+    },
+    "result": "{\"svg_path\": \"C:\\\\GITHUB Repos\\\\RoboSim_Navigation_Trainer\\\\Docs3\\\\images\\\\utility_launcher.svg\", \"png_path\": \"C:\\\\GITHUB Repos\\\\RoboSim_Navigation_Trainer\\\\Docs3\\\\images\\\\utility_launcher.png\", \"image_width\": 464, \"image_height\": 300, \"num_leaders\": 3, \"missing_widget_ids\": [], \"ordered_widget_ids\": [\".!frame.!button\", \".!frame.!button2\", \".!frame.!button3\"]}"
+  },
+  {
+    "i": 23,
+    "name": "read_driver<|channel|>commentary",
+    "args": {
+      "screen_name": "simulator_main"
+    },
+    "result": "{\"error\": \"unknown tool: read_driver<|channel|>commentary\"}"
+  },
+  {
+    "i": 24,
+    "name": "render_screen_svg",
+    "args": {
+      "ordered_widget_ids": [
+        "rect:run_button_rect",
+        "rect:fail_button_rect",
+        "rect:obs_minus_rect",
+        "rect:obs_plus_rect",
+        "rect:radio_keyboard_rect",
+        "rect:radio_gamepad_rect",
+        "rect:radio_model_rect",
+        "rect:checkbox_logging_rect",
+        "rect:checkbox_robot_view_rect",
+        "rect:prefs_button_rect",
+        "rect:model_pick_rect",
+        "rect:model_reload_rect"
+      ],
+      "screen_name": "simulator_main"
+    },
+    "result": "{\"svg_path\": \"C:\\\\GITHUB Repos\\\\RoboSim_Navigation_Trainer\\\\Docs3\\\\images\\\\simulator_main.svg\", \"png_path\": \"C:\\\\GITHUB Repos\\\\RoboSim_Navigation_Trainer\\\\Docs3\\\\images\\\\simulator_main.png\", \"image_width\": 1280, \"image_height\": 760, \"num_leaders\": 12, \"missing_widget_ids\": [], \"ordered_widget_ids\": [\"rect:run_button_rect\", \"rect:fail_button_rect\", \"rect:obs_minus_rect\", \"rect:obs_plus_rect\", \"rect:radio_keyboard_rect\", \"rect:radio_gamepad_rect\", \"rect:radio_model_rect\", \"rect:checkbox_logging_rect\", \"rect:checkbox_robot_view_rect\", \"rect:prefs_button_rect\", \"rect:model_pick_rect\", \"rect:model_reload_rect\"]}"
+  },
+  {
+    "i": 25,
+    "name": "set_project_metadata",
+    "args": {
+      "name": "RoboSim Navigation Trainer",
+      "overview": "RoboSim Navigation Trainer is an educational robot navigation simulator that lets students explore robot control, sensor processing, and machine\u2011learning training. It provides a 2\u2011D pygame visualisation of a robot equipped with whisker\u2011style range sensors, tools to record interaction logs, and GUIs for training imitation\u2011learning (MLP) and reinforcement\u2011learning (PPO) models. The suite also includes a benchmark generator and evaluator to compare model performance on standardized maps. Designed f...[truncated]",
+      "framework": "tkinter",
+      "getting_started": "1. Install the required packages (`pip install -r requirements.txt`).\n2. Run `python UTILITY_LAUNCHER.py` to open the Utility Launcher.\n3. Click **Open Simulator** to start the navigation simulator, then use the toolbar buttons to control the robot and record logs.\n4. Use **Open MLP Trainer** or **Open Benchmark Utility** to train and evaluate models.\n"
+    },
+    "result": "{\"ok\": true, \"status\": \"metadata set\", \"remaining_to_finalize\": [\"at least one screen\"]}"
+  },
+  {
+    "i": 26,
+    "name": "render_screen_svg",
+    "args": {
+      "screen_name": "mlp_trainer",
+      "ordered_widget_ids": [
+        ".!labelframe.!button",
+        ".!labelframe.!label",
+        ".!labelframe2.!entry",
+        ".!labelframe2.!entry2",
+        ".!labelframe2.!entry3",
+        ".!labelframe2.!entry5",
+        ".!labelframe2.!frame.!radiobutton",
+        ".!labelframe3.!entry",
+        ".!frame.!button"
+      ]
+    },
+    "result": "{\"svg_path\": \"C:\\\\GITHUB Repos\\\\RoboSim_Navigation_Trainer\\\\Docs3\\\\images\\\\mlp_trainer.svg\", \"png_path\": \"C:\\\\GITHUB Repos\\\\RoboSim_Navigation_Trainer\\\\Docs3\\\\images\\\\mlp_trainer.png\", \"image_width\": 887, \"image_height\": 720, \"num_leaders\": 9, \"missing_widget_ids\": [], \"ordered_widget_ids\": [\".!labelframe.!button\", \".!labelframe.!label\", \".!labelframe2.!entry\", \".!labelframe2.!entry2\", \".!labelframe2.!entry3\", \".!labelframe2.!entry5\", \".!labelframe2.!frame.!radiobutton\", \".!labelframe3.!entry\", \".!frame.!button\"]}"
+  },
+  {
+    "i": 27,
+    "name": "render_screen_svg",
+    "args": {
+      "screen_name": "ppo_trainer",
+      "ordered_widget_ids": [
+        ".!labelframe.!entry",
+        ".!labelframe.!button",
+        ".!labelframe.!entry2",
+        ".!labelframe.!button2",
+        ".!labelframe.!entry3",
+        ".!labelframe.!button3",
+        ".!labelframe2.!spinbox",
+        ".!labelframe2.!spinbox2",
+        ".!labelframe2.!spinbox3",
+        ".!labelframe2.!entry",
+        ".!labelframe2.!entry2",
+        ".!frame.!button",
+        ".!frame.!button2",
+        ".!frame2.!label3",
+        ".!frame2.!label5",
+        ".!frame2.!label7",
+        ".!frame2.!label9",
+        ".!labelframe3.!canvas"
+      ]
+    },
+    "result": "{\"svg_path\": \"C:\\\\GITHUB Repos\\\\RoboSim_Navigation_Trainer\\\\Docs3\\\\images\\\\ppo_trainer.svg\", \"png_path\": \"C:\\\\GITHUB Repos\\\\RoboSim_Navigation_Trainer\\\\Docs3\\\\images\\\\ppo_trainer.png\", \"image_width\": 1108, \"image_height\": 794, \"num_leaders\": 18, \"missing_widget_ids\": [], \"ordered_widget_ids\": [\".!labelframe.!entry\", \".!labelframe.!button\", \".!labelframe.!entry2\", \".!labelframe.!button2\", \".!labelframe.!entry3\", \".!labelframe.!button3\", \".!labelframe2.!spinbox\", \".!labelframe2.!spinbox2\", \".!labelframe2.!spinbox3\", \".!labelframe2.!entry\", \".!labelframe2.!entry2\", \".!frame.!button\", \".!frame.!button2\", \".!frame2.!label3\", \".!frame2.!label5\", \".!frame2.!label7\", \".!frame2.!label9\", \".!labelframe3.!canvas\"]}"
+  },
+  {
+    "i": 28,
+    "name": "render_driver_template",
+    "args": {
+      "framework": "tkinter",
+      "screen_name": "benchmark_gui",
+      "import_line": "from benchmark_gui import BenchmarkGui",
+      "construct": "app = BenchmarkGui(); app.root.update_idletasks(); app.root.update()"
+    },
+    "result": "{\"driver_path\": \"C:\\\\GITHUB Repos\\\\RoboSim_Navigation_Trainer\\\\Docs3\\\\work\\\\benchmark_gui\\\\driver.py\", \"screen_dir\": \"C:\\\\GITHUB Repos\\\\RoboSim_Navigation_Trainer\\\\Docs3\\\\work\\\\benchmark_gui\"}"
+  },
+  {
+    "i": 29,
+    "name": "run_driver",
+    "args": {
+      "screen_name": "benchmark_gui"
+    },
+    "result": "{\"exit_code\": 0, \"stdout\": \"pygame-ce 2.5.7 (SDL 2.32.10, Python 3.12.10)\\n\", \"stderr\": \"\", \"widgets_json\": {\"screen_name\": \"benchmark_gui\", \"image_width\": 900, \"image_height\": 700, \"scaling_factor\": 1.9999999999999998, \"origin_x\": 315, \"origin_y\": 349, \"foreground_ok\": true, \"widgets\": [{\"id\": \".!labelframe.!label\", \"cls\": \"Label\", \"text\": \"Benchmark folder\", \"x\": 335, \"y\": 395, \"w\": 143, \"h\": 29, \"callback\": null, \"role\": \"display\"}, {\"id\": \".!labelframe.!entry\", \"cls\": \"Entry\", \"text\": null, \"x\": 507, \"y\": 394, \"w\": 552, \"h\": 31, \"callback\": null, \"role\": \"control\"}, {\"id\": \".!labelframe.!button\", \"cls\": \"Button\", \"text\": \"Browse\", \"x\": 1075, \"y\": 392, \"w\": 120, \"h\": 35, \"callback\": \"1863920289600_pick_benchmark_folder\", \"role\": \"control\"}, {\"id\": \".!labelframe.!label2\", \"cls\": \"Label\", \"text\": \"# maps\", \"x\": 335, \"y\": 439, \"w\": 64, \"h\": 29, \"callback\": null, \"role\": \"display\"}, {\"id\": \".!labelframe.!spinbox\", \"cls\": \"Spinbox\", \"text\": null, \"x\": 507, \"y\": 439, \"w\": 99, \"h\": 30, \"callback\": null, \"role\": \"control\"}, {\"id\": \".!labelframe.!label3\", \"cls\": \"Label\", \"text\": \"Obstacles min/max\", \"x\": 335, \"y\": 481, \"w\": 156, \"h\": 29, \"callback\": null, \"role\": \"display\"}, {\"id\": \".!labelframe.!frame.!spinbox\", \"cls\": \"Spinbox\", \"text\": null, \"x\": 507, \"y\": 481, \"w\": 99, \"h\": 30, \"callback\": null, \"role\": \"control\"}, {\"id\": \".!labelframe.!frame.!label\", \"cls\": \"Label\", \"text\": \"to\", \"x\": 612, \"y\": 481, \"w\": 21, \"h\": 29, \"callback\": null, \"role\": \"display\"}, {\"id\": \".!labelframe.!frame.!spinbox2\", \"cls\": \"Spinbox\", \"text\": null, \"x\": 639, \"y\": 481, \"w\": 99, \"h\": 30, \"callback\": null, \"role\": \"control\"}, {\"id\": \".!labelframe.!label4\", \"cls\": \"Label\", \"text\": \"Base seed\", \"x\": 335, \"y\": 524, \"w\": 82, \"h\": 29, \"callback\": null, \"role\": \"display\"}, {\"id\": \".!labelframe.!entry2\", \"cls\": \"Entry\", \"text\": null, \"x\": 507, \"y\": 523, \"w\": 146, \"h\": 31, \"callback\": null, \"role\": \"control\"}, {\"id\": \".!labelframe.!button2\", \"cls\": \"Button\", \"text\": \"Generate Benchmark Maps\", \"x\": 335, \"y\": 570, \"w\": 860, \"h\": 35, \"callback\": \"1863921907648_on_generate_maps\", \"role\": \"control\"}, {\"id\": \".!labelframe2.!label\", \"cls\": \"Label\", \"text\": \"Model file (.json)\", \"x\": 335, \"y\": 669, \"w\": 135, \"h\": 29, \"callback\": null, \"role\": \"display\"}, {\"id\": \".!labelframe2.!entry\", \"cls\": \"Entry\", \"text\": null, \"x\": 486, \"y\": 668, \"w\": 573, \"h\": 31, \"callback\": null, \"role\": \"control\"}, {\"id\": \".!labelframe2.!button\", \"cls\": \"Button\", \"text\": \"Browse\", \"x\": 1075, \"y\": 666, \"w\": 120, \"h\": 35, \"callback\": \"1863921909056_pick_model\", \"role\": \"control\"}, {\"id\": \".!labelframe2.!button2\", \"cls\": \"Button\", \"text\": \"Run Evaluation\", \"x\": 335, \"y\": 717, \"w\": 860, \"h\": 35, \"callback\": \"1863921907328_on_run_eval\", \"role\": \"control\"}, {\"id\": \".!labelframe2.!progressbar\", \"cls\": \"Progressbar\", \"text\": null, \"x\": 335, \"y\": 762, \"w\": 860, \"h\": 22, \"callback\": null, \"role\": \"display\"}]}, \"png_path\": \"C:\\\\GITHUB Repos\\\\RoboSim_Navigation_Trainer\\\\Docs3\\\\work\\\\benchmark_gui\\\\screen.png\"}"
+  },
+  {
+    "i": 30,
+    "name": "render_screen_svg",
+    "args": {
+      "screen_name": "benchmark_gui",
+      "ordered_widget_ids": [
+        ".!labelframe.!entry",
+        ".!labelframe.!button",
+        ".!labelframe.!spinbox",
+        ".!labelframe.!frame.!spinbox",
+        ".!labelframe.!frame.!spinbox2",
+        ".!labelframe.!entry2",
+        ".!labelframe.!button2",
+        ".!labelframe2.!entry",
+        ".!labelframe2.!button",
+        ".!labelframe2.!button2",
+        ".!labelframe2.!progressbar"
+      ]
+    },
+    "result": "{\"svg_path\": \"C:\\\\GITHUB Repos\\\\RoboSim_Navigation_Trainer\\\\Docs3\\\\images\\\\benchmark_gui.svg\", \"png_path\": \"C:\\\\GITHUB Repos\\\\RoboSim_Navigation_Trainer\\\\Docs3\\\\images\\\\benchmark_gui.png\", \"image_width\": 900, \"image_height\": 700, \"num_leaders\": 11, \"missing_widget_ids\": [], \"ordered_widget_ids\": [\".!labelframe.!entry\", \".!labelframe.!button\", \".!labelframe.!spinbox\", \".!labelframe.!frame.!spinbox\", \".!labelframe.!frame.!spinbox2\", \".!labelframe.!entry2\", \".!labelframe.!button2\", \".!labelframe2.!entry\", \".!labelframe2.!button\", \".!labelframe2.!button2\", \".!labelframe2.!progressbar\"]}"
+  },
+  {
+    "i": 31,
+    "name": "set_screen_content",
+    "args": {
+      "screen_id": "utility_launcher",
+      "title": "Utility Launcher",
+      "description": "Hub window for launching all RoboSim tools in separate processes.",
+      "usage_notes": "Click **Open Simulator** (1) to start the navigation simulator. Click **Open MLP Trainer** (2) to train imitation learning models from logs. Click **Open Benchmark Utility** (3) to generate benchmark maps and evaluate model performance. The status bar at the bottom shows which tool was last launched.",
+      "widgets": [
+        {
+          "widget_id": ".!frame.!button",
+          "label": "Open Simulator",
+          "description": "Launches simulator.py in a new Python process."
+        },
+        {
+          "widget_id": ".!frame.!button2",
+          "label": "Open MLP Trainer",
+          "description": "Launches train_mlp.py in a new Python process."
+        },
+        {
+          "widget_id": ".!frame.!button3",
+          "label": "Open Benchmark Utility",
+          "description": "Launches benchmark_gui.py in a new Python process."
+        }
+      ]
+    },
+    "result": "{\"ok\": true, \"screens_set\": [\"utility_launcher\"], \"remaining_to_finalize\": [], \"legend_length\": 3, \"svg_leader_count\": 3}"
+  },
+  {
+    "i": 32,
+    "name": "render_screen_svg",
+    "args": {
+      "screen_name": "simulator_main",
+      "ordered_widget_ids": "['rect:run_button_rect', 'rect:fail_button_rect', 'rect:obs_minus_rect', 'rect:obs_plus_rect', 'rect:radio_keyboard_rect', 'rect:radio_gamepad_rect', 'rect:radio_model_rect', 'rect:checkbox_logging_rect', 'rect:checkbox_robot_view_rect', 'rect:prefs_button_rect', 'rect:model_pick_rect', 'rect:model_reload_rect', 'text:18:No_heading_strafe_mo', 'text:19:Q:0_N:-_L:-', 'text:20:Drive_Command', 'text:21:rot:_+0.0_deg/s', 'text:22:vx:+0.00_vy:+0.00_m/', 'text:23:Whisker_Lengths_(m)_', 'text:35:Headin...[truncated]"
+    },
+    "result": "{\"svg_path\": \"C:\\\\GITHUB Repos\\\\RoboSim_Navigation_Trainer\\\\Docs3\\\\images\\\\simulator_main.svg\", \"png_path\": \"C:\\\\GITHUB Repos\\\\RoboSim_Navigation_Trainer\\\\Docs3\\\\images\\\\simulator_main.png\", \"image_width\": 1280, \"image_height\": 760, \"num_leaders\": 21, \"missing_widget_ids\": [], \"ordered_widget_ids\": [\"rect:run_button_rect\", \"rect:fail_button_rect\", \"rect:obs_minus_rect\", \"rect:obs_plus_rect\", \"rect:radio_keyboard_rect\", \"rect:radio_gamepad_rect\", \"rect:radio_model_rect\", \"rect:checkbox_logging_rect\", \"rect:checkbox_robot_view_rect\", \"rect:prefs_button_rect\", \"rect:model_pick_rect\", \"rect:model_reload_rect\", \"text:18:No_heading_strafe_mo\", \"text:19:Q:0_N:-_L:-\", \"text:20:Drive_Command\", \"text:21:rot:_+0.0_deg/s\", \"text:22:vx:+0.00_vy:+0.00_m/\", \"text:23:Whisker_Lengths_(m)_\", \"text:35:Heading_to_Target:_+\", \"text:36:Collision\", \"text:38:Pose_x=1.57,_y=0.80,\"]}"
+  },
+  {
+    "i": 33,
+    "name": "set_screen_content",
+    "args": {
+      "screen_id": "simulator_main",
+      "title": "Simulator Main Window",
+      "description": "Pygame-based robot navigation simulation with real-time controls and sensor readouts.",
+      "usage_notes": "Use **Run** (1) to start a new episode and **Fail** (2) to terminate the current episode. Adjust obstacle count with the +/- buttons (3-4). Select input source: **Keyboard** (5), **Gamepad** (6), or **Model** (7). Toggle **Enable Logging** (8) to record training data and **Robot View** (9) to align display with robot heading. Open **Preferences** (10) to adjust advanced settings. When in Model mode, use **Pick** (11) to select a trained model and **Reload** (12) to refresh. The right panel shows...[truncated]",
+      "widgets": "[{'widget_id': 'rect:run_button_rect', 'label': 'Run button', 'description': 'Starts a new navigation episode with random robot pose and obstacles.'}, {'widget_id': 'rect:fail_button_rect', 'label': 'Fail button', 'description': 'Terminates the current episode and writes logs if logging is enabled.'}, {'widget_id': 'rect:obs_minus_rect', 'label': 'Obstacle minus', 'description': 'Decreases the number of obstacles in the simulation by one.'}, {'widget_id': 'rect:obs_plus_rect', 'label': 'Obstacle...[truncated]"
+    },
+    "result": "{\"ok\": true, \"screens_set\": [\"utility_launcher\", \"simulator_main\"], \"remaining_to_finalize\": [], \"legend_length\": 21, \"svg_leader_count\": 21}"
+  },
+  {
+    "i": 34,
+    "name": "set_screen_content",
+    "args": {
+      "screen_id": "mlp_trainer",
+      "title": "MLP Trainer",
+      "description": "GUI for training multi-layer perceptron models from navigation logs using imitation learning.",
+      "usage_notes": "Click **Select Log Files** (1) to choose one or more JSONL log files. The file count appears in the label (2). Configure the network architecture: **Hidden Width** (3) sets neurons per layer, **Hidden Layers** (4) sets depth. Set **Epochs** (5) and **Learning Rate** (6), then choose an activation function via the radio buttons (7). Specify the **Save Dir** (8) and optional **Model Name**, then click **Train Models** (9) to start training. The status area shows progress and saved file paths.",
+      "widgets": "[{'widget_id': '.!labelframe.!button', 'label': 'Select Log Files', 'description': 'Opens file dialog to pick JSONL navigation log files.'}, {'widget_id': '.!labelframe.!label', 'label': 'File count', 'description': 'Shows how many log files are currently selected.'}, {'widget_id': '.!labelframe2.!entry', 'label': 'Hidden Width', 'description': 'Number of neurons in each hidden layer of the MLP.'}, {'widget_id': '.!labelframe2.!entry2', 'label': 'Hidden Layers', 'description': 'Number of hidden ...[truncated]"
+    },
+    "result": "{\"ok\": true, \"screens_set\": [\"utility_launcher\", \"simulator_main\", \"mlp_trainer\"], \"remaining_to_finalize\": [], \"legend_length\": 9, \"svg_leader_count\": 9}"
+  },
+  {
+    "i": 35,
+    "name": "set_screen_content",
+    "args": {
+      "screen_id": "ppo_trainer",
+      "title": "PPO Trainer",
+      "description": "GUI for fine-tuning navigation models using Proximal Policy Optimization with live plots.",
+      "usage_notes": "Enter the **Warm-start IL model** path (1) or browse (2) to load a pre-trained imitation learning model. Set **Benchmark folder** (3) and **Output folder** (4-5). Configure hyperparameters: **Parallel envs** (7), **Steps per env** (8), **Total iterations** (9), learning rates (10-11), **Clip range** (12), **Epochs** (13), **Minibatch size** (14), obstacle counts (15-16), and **Base seed** (17). Choose **Device** (18) and click **Start** (12) to begin PPO training. The live plot (18) shows reward...[truncated]",
+      "widgets": "[{'widget_id': '.!labelframe.!entry', 'label': 'Warm-start model', 'description': 'Path to a pre-trained IL model JSON to initialize PPO.'}, {'widget_id': '.!labelframe.!button', 'label': 'Browse warm-start', 'description': 'Opens file dialog to pick IL model JSON file.'}, {'widget_id': '.!labelframe.!entry2', 'label': 'Benchmark folder', 'description': 'Directory containing benchmark map files for evaluation.'}, {'widget_id': '.!labelframe.!button2', 'label': 'Browse benchmark', 'description': ...[truncated]"
+    },
+    "result": "{\"ok\": true, \"screens_set\": [\"utility_launcher\", \"simulator_main\", \"mlp_trainer\", \"ppo_trainer\"], \"remaining_to_finalize\": [], \"legend_length\": 18, \"svg_leader_count\": 18}"
+  },
+  {
+    "i": 36,
+    "name": "set_screen_content",
+    "args": {
+      "screen_id": "benchmark_gui",
+      "title": "Benchmark Evaluator",
+      "description": "GUI for generating benchmark maps and evaluating model performance on standardized scenarios.",
+      "usage_notes": "Enter the **Benchmark folder** (1) or browse (2) to set where maps are stored. Set **# maps** (3) to generate, plus obstacle min/max (4-5) and **Base seed** (6). Click **Generate Benchmark Maps** (7) to create standardized test scenarios. For evaluation, enter the **Model file** path (8) or browse (9), then click **Run Evaluation** (10). Progress appears in the bar (11) and detailed results show in the text area.",
+      "widgets": "[{'widget_id': '.!labelframe.!entry', 'label': 'Benchmark folder', 'description': 'Directory where benchmark map files are stored.'}, {'widget_id': '.!labelframe.!button', 'label': 'Browse benchmark', 'description': 'Opens directory chooser for benchmark maps.'}, {'widget_id': '.!labelframe.!spinbox', 'label': '# maps', 'description': 'Number of benchmark maps to generate.'}, {'widget_id': '.!labelframe.!frame.!spinbox', 'label': 'Obstacles min', 'description': 'Minimum number of obstacles per b...[truncated]"
+    },
+    "result": "{\"ok\": true, \"screens_set\": [\"utility_launcher\", \"simulator_main\", \"mlp_trainer\", \"ppo_trainer\", \"benchmark_gui\"], \"remaining_to_finalize\": [], \"legend_length\": 11, \"svg_leader_count\": 11}"
+  },
+  {
+    "i": 37,
+    "name": "add_workflow",
+    "args": {
+      "name": "Launch and navigate the simulator",
+      "description": "Start the robot navigation simulator, drive the robot using keyboard or gamepad, and generate training logs for imitation learning.",
+      "steps": "['Run `python UTILITY_LAUNCHER.py` and click **Open Simulator** (1) to launch the simulator.', 'In the **Simulator Main Window**, click **Run** (1) to start a new episode with random robot pose and obstacles.', 'Select input mode: **Keyboard** (5) for WASD/arrow keys, **Gamepad** (6) for joystick, or **Model** (7) for autonomous mode.', 'Drive the robot toward the green target while avoiding gray obstacles. Whisker readouts (17) show distances to obstacles.', 'Toggle **Enable Logging** (8) to re...[truncated]",
+      "screens": [
+        "utility_launcher",
+        "simulator_main"
+      ]
+    },
+    "result": "{\"ok\": true, \"workflow_count\": 1, \"remaining_to_finalize\": []}"
+  },
+  {
+    "i": 38,
+    "name": "add_workflow",
+    "args": {
+      "name": "Train an imitation learning model (MLP)",
+      "description": "Use the MLP Trainer to teach a neural network to mimic your navigation behavior from recorded logs.",
+      "steps": "[\"First, generate training logs by running the simulator with logging enabled (see 'Launch and navigate the simulator' workflow).\", 'Run `python UTILITY_LAUNCHER.py` and click **Open MLP Trainer** (2) to open the **MLP Trainer**.', 'In the **MLP Trainer**, click **Select Log Files** (1) and choose the JSONL files from the `logs/` directory.', 'Configure network architecture: set **Hidden Width** (3), **Hidden Layers** (4), **Epochs** (5), **Batch Size**, and **Learning Rate** (6).', 'Choose an a...[truncated]",
+      "screens": [
+        "mlp_trainer"
+      ]
+    },
+    "result": "{\"ok\": true, \"workflow_count\": 2, \"remaining_to_finalize\": []}"
+  },
+  {
+    "i": 39,
+    "name": "add_workflow",
+    "args": {
+      "name": "Fine-tune with PPO reinforcement learning",
+      "description": "Improve a trained imitation learning model using Proximal Policy Optimization in headless simulation.",
+      "steps": "['Run `python train_ppo.py` to open the **PPO Trainer**.', 'Enter the path to a trained IL model in **Warm-start IL model** (1) or click **Browse** (2) to select it.', 'Set **Benchmark folder** (3) and **Output folder** (4-5) for evaluation and model saving.', 'Configure hyperparameters: **Parallel envs** (7), **Steps per env** (8), **Total iterations** (9), learning rates (10-11), and others.', 'Click **Start** (12) to begin PPO training. The live plot (18) shows reward, success rates, and benc...[truncated]",
+      "screens": [
+        "ppo_trainer"
+      ]
+    },
+    "result": "{\"ok\": true, \"workflow_count\": 3, \"remaining_to_finalize\": []}"
+  },
+  {
+    "i": 40,
+    "name": "add_workflow",
+    "args": {
+      "name": "Benchmark and evaluate models",
+      "description": "Generate standardized test maps and measure model performance with success rates and navigation times.",
+      "steps": "['Run `python UTILITY_LAUNCHER.py` and click **Open Benchmark Utility** (3) to open the **Benchmark Evaluator**.', 'In the **Benchmark Setup** section, set **Benchmark folder** (1) and number of **# maps** (3) to generate.', 'Configure obstacle range with **Obstacles min/max** (4-5) and **Base seed** (6), then click **Generate Benchmark Maps** (7).', 'For evaluation, enter the **Model file** path (8) or click **Browse** (9) to select a trained model JSON.', 'Click **Run Evaluation** (10). Progre...[truncated]",
+      "screens": [
+        "benchmark_gui"
+      ]
+    },
+    "result": "{\"ok\": true, \"workflow_count\": 4, \"remaining_to_finalize\": []}"
+  },
+  {
+    "i": 41,
+    "name": "add_manual_section",
+    "args": {
+      "id": "installation",
+      "title": "Installation",
+      "order": 100,
+      "body": "RoboSim Navigation Trainer requires Python 3.8+ and the following packages:\n\n```bash\npip install -r requirements.txt\n```\n\nThe `requirements.txt` typically includes:\n- `pygame` \u2014 for the simulator rendering\n- `numpy` \u2014 for numerical computations\n- `torch` \u2014 for PPO neural networks (if using train_ppo.py)\n- `matplotlib` \u2014 for training plots\n- `gym` \u2014 for the headless environment interface\n\nIf you plan to use the PPO trainer with GPU acceleration, ensure you have a CUDA-compatible GPU and install t...[truncated]"
+    },
+    "result": "{\"ok\": true, \"section_count\": 1, \"section_ids\": [\"installation\"]}"
+  },
+  {
+    "i": 42,
+    "name": "add_manual_section",
+    "args": {
+      "body": "The project is organized as follows:\n\n```\nRoboSim_Navigation_Trainer/\n\u251c\u2500\u2500 UTILITY_LAUNCHER.py    # Desktop hub for launching all tools\n\u251c\u2500\u2500 simulator.py            # Main pygame-based navigation simulator\n\u251c\u2500\u2500 sim_core.py             # Core robot physics and obstacle generation\n\u251c\u2500\u2500 train_mlp.py            # MLP imitation learning trainer (Tkinter GUI)\n\u251c\u2500\u2500 train_ppo.py            # PPO reinforcement learning trainer (Tkinter GUI)\n\u251c\u2500\u2500 benchmark_gui.py        # Benchmark map generator and model evalu...[truncated]",
+      "id": "project-structure",
+      "order": 200,
+      "title": "Project Structure"
+    },
+    "result": "{\"ok\": true, \"section_count\": 2, \"section_ids\": [\"installation\", \"project-structure\"]}"
+  },
+  {
+    "i": 43,
+    "name": "add_manual_section",
+    "args": {
+      "body": "Before using the tools, understand these key concepts:\n\n**Whisker sensors** \u2014 The robot is equipped with 11 virtual whiskers (like a cat's whiskers) spaced at angles from -90\u00b0 to +90\u00b0. Each whisker measures the distance to the nearest obstacle (up to 0.5\u202fm). These distances are the primary input to the navigation models.\n\n**Control modes** \u2014 The robot supports three control schemes:\n- *Heading+Drive*: Outputs are `drive_speed` (forward/back) and `rotation_rate` (turning speed).\n- *XY Strafe*: Ou...[truncated]",
+      "id": "core-concepts",
+      "order": 300,
+      "title": "Core Concepts"
+    },
+    "result": "{\"ok\": true, \"section_count\": 3, \"section_ids\": [\"installation\", \"project-structure\", \"core-concepts\"]}"
+  },
+  {
+    "i": 44,
+    "name": "add_manual_section",
+    "args": {
+      "body": "Although the primary tools are GUIs, you can also launch each module directly from the command line.\n\n### `UTILITY_LAUNCHER.py`\nDesktop hub that opens other tools in separate processes.\n```bash\npython UTILITY_LAUNCHER.py\n```\n\n### `simulator.py`\nMain navigation simulator with pygame rendering.\n```bash\npython simulator.py\n```\n**Interactive controls:**\n- `W`/`S` or arrow keys: drive forward/backward\n- `A`/`D` or arrow keys: turn left/right\n- `Space`: toggle logging on/off\n- `R`: start new episode (...[truncated]",
+      "id": "cli-reference",
+      "order": 600,
+      "title": "CLI and Script Reference"
+    },
+    "result": "{\"ok\": true, \"section_count\": 4, \"section_ids\": [\"installation\", \"project-structure\", \"core-concepts\", \"cli-reference\"]}"
+  },
+  {
+    "i": 45,
+    "name": "add_manual_section",
+    "args": {
+      "body": "### Simulator preferences (`simulator_prefs.json`)\nThe simulator saves user preferences to `simulator_prefs.json` in the project root. You can edit this file directly or use the **Preferences** dialog (button 10 in the simulator).\n\n| Setting | Description | Default |\n|---------|-------------|---------|\n| `history_len` | Number of timesteps in the input window (1\u201310) | 1 |\n| `active_log_rate_hz` | Logging frequency when obstacles are near (1\u201330\u202fHz) | 10.0 |\n| `min_turn_rate_dps` | Minimum turn ra...[truncated]",
+      "id": "configuration",
+      "order": 700,
+      "title": "Configuration"
+    },
+    "result": "{\"ok\": true, \"section_count\": 5, \"section_ids\": [\"installation\", \"project-structure\", \"core-concepts\", \"cli-reference\", \"configuration\"]}"
+  },
+  {
+    "i": 46,
+    "name": "add_manual_section",
+    "args": {
+      "body": "### Simulator fails to open\n- Ensure `pygame` is installed (`pip install pygame`).\n- Check that your display environment supports GUI applications (some headless servers require `xvfb`).\n\n### No gamepad detected\n- Verify the gamepad is connected before launching the simulator.\n- On Linux, you may need to install `joystick` package and run `jstest` to verify.\n\n### MLP training crashes with \u201cshape mismatch\u201d\n- Make sure you are using logs generated with the same `history_len` as expected by the mod...[truncated]",
+      "id": "troubleshooting",
+      "order": 800,
+      "title": "Troubleshooting"
+    },
+    "result": "{\"ok\": true, \"section_count\": 6, \"section_ids\": [\"installation\", \"project-structure\", \"core-concepts\", \"cli-reference\", \"configuration\", \"troubleshooting\"]}"
+  },
+  {
+    "i": 47,
+    "name": "add_architecture_diagram",
+    "args": {
+      "id": "top_level",
+      "title": "Application architecture",
+      "description": "The diagram below shows how data flows between the main modules of RoboSim Navigation Trainer.",
+      "nodes": "[{'id': 'simulator', 'label': 'Simulator', 'summary': 'Pygame-based robot navigation simulation with real-time visualization and logging.'}, {'id': 'mlp_trainer', 'label': 'MLP Trainer', 'summary': 'Tkinter GUI for training imitation learning models from JSONL logs.'}, {'id': 'ppo_trainer', 'label': 'PPO Trainer', 'summary': 'Tkinter GUI for fine-tuning models with reinforcement learning.'}, {'id': 'benchmark_gui', 'label': 'Benchmark GUI', 'summary': 'Tool for generating benchmark maps and eval...[truncated]",
+      "edges": "[{'source': 'simulator', 'target': 'logs', 'label': 'writes training data'}, {'source': 'logs', 'target': 'mlp_trainer', 'label': 'reads logs'}, {'source': 'mlp_trainer', 'target': 'models', 'label': 'saves IL models'}, {'source': 'models', 'target': 'ppo_trainer', 'label': 'warm-starts PPO'}, {'source': 'ppo_trainer', 'target': 'headless_sim', 'label': 'runs parallel envs'}, {'source': 'headless_sim', 'target': 'ppo_trainer', 'label': 'returns rewards'}, {'source': 'ppo_trainer', 'target': 'mod...[truncated]"
+    },
+    "result": "{\"ok\": true, \"svg_path\": \"C:\\\\GITHUB Repos\\\\RoboSim_Navigation_Trainer\\\\Docs3\\\\images\\\\arch_top_level.svg\", \"section_id\": \"top_level\", \"node_count\": 7, \"edge_count\": 10, \"renderer\": \"drawio (draw.io.exe)\"}"
+  },
+  {
+    "i": 48,
+    "name": "finalize_readme",
+    "args": {},
+    "result": "{\"readme_path\": \"C:\\\\GITHUB Repos\\\\RoboSim_Navigation_Trainer\\\\Docs3\\\\README.md\", \"pdf_path\": \"C:\\\\GITHUB Repos\\\\RoboSim_Navigation_Trainer\\\\Docs3\\\\README.pdf\", \"pdf_status\": \"wrote README.pdf\", \"screens_included\": [\"utility_launcher\", \"simulator_main\", \"mlp_trainer\", \"ppo_trainer\", \"benchmark_gui\"]}"
+  }
+]

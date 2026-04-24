@@ -1,0 +1,23 @@
+[
+  "rect:run_button_rect",
+  "rect:fail_button_rect",
+  "rect:obs_minus_rect",
+  "rect:obs_plus_rect",
+  "rect:radio_keyboard_rect",
+  "rect:radio_gamepad_rect",
+  "rect:radio_model_rect",
+  "rect:checkbox_logging_rect",
+  "rect:checkbox_robot_view_rect",
+  "rect:prefs_button_rect",
+  "rect:model_pick_rect",
+  "rect:model_reload_rect",
+  "text:18:No_heading_strafe_mo",
+  "text:19:Q:0_N:-_L:-",
+  "text:20:Drive_Command",
+  "text:21:rot:_+0.0_deg/s",
+  "text:22:vx:+0.00_vy:+0.00_m/",
+  "text:23:Whisker_Lengths_(m)_",
+  "text:35:Heading_to_Target:_+",
+  "text:36:Collision",
+  "text:38:Pose_x=1.57,_y=0.80,"
+]

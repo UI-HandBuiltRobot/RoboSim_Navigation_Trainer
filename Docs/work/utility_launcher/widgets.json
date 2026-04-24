@@ -1,0 +1,66 @@
+{
+  "screen_name": "utility_launcher",
+  "image_width": 464,
+  "image_height": 300,
+  "scaling_factor": 1.9999999999999998,
+  "origin_x": 391,
+  "origin_y": 425,
+  "foreground_ok": false,
+  "widgets": [
+    {
+      "id": ".!frame.!label",
+      "cls": "Label",
+      "text": "Launch a main utility",
+      "x": 407,
+      "y": 441,
+      "w": 280,
+      "h": 42,
+      "callback": null,
+      "role": "display"
+    },
+    {
+      "id": ".!frame.!label2",
+      "cls": "Label",
+      "text": "This opens each tool in its own Python process.",
+      "x": 407,
+      "y": 491,
+      "w": 379,
+      "h": 29,
+      "callback": null,
+      "role": "display"
+    },
+    {
+      "id": ".!frame.!button",
+      "cls": "Button",
+      "text": "Open Simulator",
+      "x": 407,
+      "y": 538,
+      "w": 432,
+      "h": 35,
+      "callback": "1843861395904<lambda>",
+      "role": "control"
+    },
+    {
+      "id": ".!frame.!button2",
+      "cls": "Button",
+      "text": "Open MLP Trainer",
+      "x": 407,
+      "y": 581,
+      "w": 432,
+      "h": 35,
+      "callback": "1843861473408<lambda>",
+      "role": "control"
+    },
+    {
+      "id": ".!frame.!button3",
+      "cls": "Button",
+      "text": "Open Benchmark Utility",
+      "x": 407,
+      "y": 624,
+      "w": 432,
+      "h": 35,
+      "callback": "1843861476992<lambda>",
+      "role": "control"
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+[
+  ".!labelframe.!entry",
+  ".!labelframe.!button",
+  ".!labelframe.!spinbox",
+  ".!labelframe.!frame.!spinbox",
+  ".!labelframe.!frame.!spinbox2",
+  ".!labelframe.!entry2",
+  ".!labelframe.!button2",
+  ".!labelframe2.!entry",
+  ".!labelframe2.!button",
+  ".!labelframe2.!button2",
+  ".!labelframe2.!progressbar"
+]

@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<title>README</title>
+
+<style>
+@page { size: A4; margin: 2.0cm 1.6cm; }
+html, body { font-family: -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+             font-size: 10.5pt; color: #1b1b1b; line-height: 1.55; }
+h1 { font-size: 24pt; border-bottom: 2px solid #333; padding-bottom: 0.3em; margin-top: 0; }
+h2 { font-size: 17pt; border-bottom: 1px solid #bbb; padding-bottom: 0.2em; margin-top: 1.8em;
+     page-break-after: avoid; }
+h3 { font-size: 13pt; margin-top: 1.3em; page-break-after: avoid; }
+h4 { font-size: 11.5pt; margin-top: 1em; }
+p  { margin: 0.55em 0; text-align: justify; }
+code { background: #f2f2f2; padding: 0 0.3em; border-radius: 3px;
+       font-family: "Consolas", "Menlo", monospace; font-size: 0.92em; }
+pre { background: #f6f8fa; padding: 0.7em 1em; border-radius: 4px; overflow-x: auto;
+      font-size: 0.9em; page-break-inside: avoid; }
+pre code { background: transparent; padding: 0; }
+img { max-width: 100%; height: auto; display: block; margin: 0.8em auto;
+      page-break-inside: avoid; border: 1px solid #ccc; }
+table { border-collapse: collapse; margin: 0.8em 0; font-size: 0.95em;
+        page-break-inside: avoid; }
+th, td { border: 1px solid #bbb; padding: 0.35em 0.7em; text-align: left; }
+th { background: #eee; }
+blockquote { border-left: 4px solid #90b4d8; background: #f2f7fb; padding: 0.4em 0.9em;
+             margin: 0.8em 0; color: #333; page-break-inside: avoid; }
+ol, ul { margin: 0.5em 0 0.8em 1.2em; }
+li { margin: 0.25em 0; }
+hr { border: none; border-top: 1px solid #ccc; margin: 1.5em 0; page-break-after: always; }
+</style>
+
+</head><body>
+<h1 id="robosim-navigation-trainer">RoboSim Navigation Trainer</h1>
+<p>RoboSim Navigation Trainer is an educational robot navigation simulator that lets students explore robot control, sensor processing, and machine‑learning training. It provides a 2‑D pygame visualisation of a robot equipped with whisker‑style range sensors, tools to record interaction logs, and GUIs for training imitation‑learning (MLP) and reinforcement‑learning (PPO) models. The suite also includes a benchmark generator and evaluator to compare model performance on standardized maps. Designed for students and researchers, the project demonstrates the full data‑flow pipeline from simulation to model deployment.</p>
+<h2 id="getting-started">Getting Started</h2>
+<ol>
+<li>Install the required packages (<code>pip install -r requirements.txt</code>).</li>
+<li>Run <code>python UTILITY_LAUNCHER.py</code> to open the Utility Launcher.</li>
+<li>Click <strong>Open Simulator</strong> to start the navigation simulator, then use the toolbar buttons to control the robot and record logs.</li>
+<li>Use <strong>Open MLP Trainer</strong> or <strong>Open Benchmark Utility</strong> to train and evaluate models.</li>
+</ol>
+<h2 id="installation">Installation</h2>
+<p>RoboSim Navigation Trainer requires Python 3.8+ and the following packages:</p>
+<pre><code class="language-bash">pip install -r requirements.txt
+</code></pre>
+<p>The <code>requirements.txt</code> typically includes:
+- <code>pygame</code> — for the simulator rendering
+- <code>numpy</code> — for numerical computations
+- <code>torch</code> — for PPO neural networks (if using train_ppo.py)
+- <code>matplotlib</code> — for training plots
+- <code>gym</code> — for the headless environment interface</p>
+<p>If you plan to use the PPO trainer with GPU acceleration, ensure you have a CUDA-compatible GPU and install the appropriate <code>torch</code> version with CUDA support.</p>
+<p><strong>Note:</strong> The project uses <code>pygame-ce</code> (Community Edition), which is a fork of pygame with continued maintenance.</p>
+<h2 id="project-structure">Project Structure</h2>
+<p>The project is organized as follows:</p>
+<pre><code>RoboSim_Navigation_Trainer/
+├── UTILITY_LAUNCHER.py    # Desktop hub for launching all tools
+├── simulator.py            # Main pygame-based navigation simulator
+├── sim_core.py             # Core robot physics and obstacle generation
+├── train_mlp.py            # MLP imitation learning trainer (Tkinter GUI)
+├── train_ppo.py            # PPO reinforcement learning trainer (Tkinter GUI)
+├── benchmark_gui.py        # Benchmark map generator and model evaluator
+├── headless_sim.py         # Non-GUI simulation environment for training
+├── nav_env.py              # OpenAI Gym-compatible environment wrapper
+├── requirements.txt         # Python dependencies
+├── logs/                   # Directory for simulator JSONL log files
+├── trained_models/         # Output directory for saved model JSON files
+├── benchmark/              # Benchmark map files for standardized evaluation
+├── dagger_snapshots/       # Snapshot directory for DAgger iterations
+├── images/                 # Simulator image assets (if any)
+└── Docs3/                  # Auto-generated documentation (this README lives here)
+</code></pre>
+<p><strong>Key modules for students:</strong>
+- <code>simulator.py</code> + <code>sim_core.py</code> — Understand robot kinematics, whisker sensor math, and environment generation.
+- <code>train_mlp.py</code> — Study how imitation learning converts logs into neural network weights.
+- <code>train_ppo.py</code> — Explore policy gradient methods and actor-critic architectures.</p>
+<h2 id="application-architecture">Application architecture</h2>
+<p>The diagram below shows how data flows between the main modules of RoboSim Navigation Trainer.</p>
+<p><img alt="Application architecture" src="images/arch_top_level.svg"></p>
+<h2 id="core-concepts">Core Concepts</h2>
+<p>Before using the tools, understand these key concepts:</p>
+<p><strong>Whisker sensors</strong> — The robot is equipped with 11 virtual whiskers (like a cat's whiskers) spaced at angles from -90° to +90°. Each whisker measures the distance to the nearest obstacle (up to 0.5 m). These distances are the primary input to the navigation models.</p>
+<p><strong>Control modes</strong> — The robot supports three control schemes:
+- <em>Heading+Drive</em>: Outputs are <code>drive_speed</code> (forward/back) and <code>rotation_rate</code> (turning speed).
+- <em>XY Strafe</em>: Outputs are <code>vx</code> and <code>vy</code> (velocity in x/y directions).
+- <em>Hdg+Strafe</em>: Combined outputs: <code>rotation_rate</code>, <code>vx</code>, <code>vy</code>.</p>
+<p><strong>Imitation Learning (IL)</strong> — Also called <em>learning from demonstration</em>. You drive the robot manually while it records (whisker readings → your actions). A neural network then learns to mimic your driving behavior.</p>
+<p><strong>MLP (Multi-Layer Perceptron)</strong> — A feedforward neural network with one or more hidden layers. The <code>train_mlp.py</code> tool trains an MLP using your recorded logs.</p>
+<p><strong>PPO (Proximal Policy Optimization)</strong> — A reinforcement learning algorithm that improves the model by running many parallel simulations, collecting rewards, and updating the policy. PPO can start from (warm-start) an IL model and fine-tune it.</p>
+<p><strong>DAgger</strong> — Dataset Aggregation, an iterative process where the model drives, the human corrects mistakes, and the model retrains on the combined data. The simulator supports DAgger snapshots.</p>
+<p><strong>JSONL logs</strong> — Each line is a JSON object containing a history of whisker lengths, target bearing, and the action taken. These files are the training data for IL.</p>
+<p><strong>Benchmark maps</strong> — Standardized obstacle layouts generated with a fixed random seed. They allow fair comparison between different models.</p>
+<hr>
+<h2 id="launch-and-navigate-the-simulator">Launch and navigate the simulator</h2>
+<p>Start the robot navigation simulator, drive the robot using keyboard or gamepad, and generate training logs for imitation learning.</p>
+<h3 id="how-to-use">How to use</h3>
+<ol>
+<li>
+<p>Run <code>python UTILITY_LAUNCHER.py</code> and click <strong>Open Simulator</strong> (1) to launch the simulator.</p>
+</li>
+<li>
+<p>In the <strong>Simulator Main Window</strong>, click <strong>Run</strong> (1) to start a new episode with random robot pose and obstacles.</p>
+</li>
+<li>
+<p>Select input mode: <strong>Keyboard</strong> (5) for WASD/arrow keys, <strong>Gamepad</strong> (6) for joystick, or <strong>Model</strong> (7) for autonomous mode.</p>
+</li>
+<li>
+<p>Drive the robot toward the green target while avoiding gray obstacles. Whisker readouts (17) show distances to obstacles.</p>
+</li>
+<li>
+<p>Toggle <strong>Enable Logging</strong> (8) to record sensor/action data to JSONL files for later training.</p>
+</li>
+<li>
+<p>When finished, click <strong>Fail</strong> (2) to end the episode and save logs to the <code>logs/</code> directory.</p>
+</li>
+</ol>
+<h3 id="utility-launcher">Utility Launcher</h3>
+<p>Hub window for launching all RoboSim tools in separate processes.</p>
+<p><img alt="Utility Launcher" src="images/utility_launcher.svg"></p>
+<p><strong>Labeled controls and displays:</strong></p>
+<ol>
+<li>
+<p><strong>Open Simulator</strong> — Launches simulator.py in a new Python process.</p>
+</li>
+<li>
+<p><strong>Open MLP Trainer</strong> — Launches train_mlp.py in a new Python process.</p>
+</li>
+<li>
+<p><strong>Open Benchmark Utility</strong> — Launches benchmark_gui.py in a new Python process.</p>
+</li>
+</ol>
+<p>Click <strong>Open Simulator</strong> (1) to start the navigation simulator. Click <strong>Open MLP Trainer</strong> (2) to train imitation learning models from logs. Click <strong>Open Benchmark Utility</strong> (3) to generate benchmark maps and evaluate model performance. The status bar at the bottom shows which tool was last launched.</p>
+<h3 id="simulator-main-window">Simulator Main Window</h3>
+<p>Pygame-based robot navigation simulation with real-time controls and sensor readouts.</p>
+<p><img alt="Simulator Main Window" src="images/simulator_main.svg"></p>
+<p><strong>Labeled controls and displays:</strong></p>
+<ol>
+<li>
+<p><strong>Run button</strong> — Starts a new navigation episode with random robot pose and obstacles.</p>
+</li>
+<li>
+<p><strong>Fail button</strong> — Terminates the current episode and writes logs if logging is enabled.</p>
+</li>
+<li>
+<p><strong>Obstacle minus</strong> — Decreases the number of obstacles in the simulation by one.</p>
+</li>
+<li>
+<p><strong>Obstacle plus</strong> — Increases the number of obstacles in the simulation by one.</p>
+</li>
+<li>
+<p><strong>Keyboard radio</strong> — Switches input to keyboard control (WASD/arrow keys).</p>
+</li>
+<li>
+<p><strong>Gamepad radio</strong> — Switches input to connected gamepad/joystick.</p>
+</li>
+<li>
+<p><strong>Model radio</strong> — Switches to autonomous mode using a loaded IL/RL model.</p>
+</li>
+<li>
+<p><strong>Enable Logging</strong> — Toggles recording of sensor/action data to JSONL log files.</p>
+</li>
+<li>
+<p><strong>Robot View</strong> — When checked, the simulation view rotates to follow the robot heading.</p>
+</li>
+<li>
+<p><strong>Preferences</strong> — Opens the preferences dialog for advanced simulation settings.</p>
+</li>
+<li>
+<p><strong>Model Pick</strong> — Opens file dialog to select a trained model JSON file.</p>
+</li>
+<li>
+<p><strong>Model Reload</strong> — Reloads the currently selected model from disk.</p>
+</li>
+<li>
+<p><strong>Model Status</strong> — Shows which control-mode model is loaded or 'No model' if none.</p>
+</li>
+<li>
+<p><strong>Episode counters</strong> — Displays current episode/step counts (Q=episodes, N=steps, L=logs).</p>
+</li>
+<li>
+<p><strong>Drive Command</strong> — Section header for the current control-mode outputs.</p>
+</li>
+<li>
+<p><strong>Rotation rate</strong> — Live readout of robot's current turning speed in deg/s.</p>
+</li>
+<li>
+<p><strong>Velocity readout</strong> — Live readout of robot's linear velocity components in m/s.</p>
+</li>
+<li>
+<p><strong>Whisker readouts</strong> — Section header for the 11 whisker distance measurements to obstacles.</p>
+</li>
+<li>
+<p><strong>Heading to Target</strong> — Current bearing from robot to target in degrees (positive = clockwise).</p>
+</li>
+<li>
+<p><strong>Collision status</strong> — Displays 'YES' if robot is currently colliding with an obstacle or wall.</p>
+</li>
+<li>
+<p><strong>Robot Pose</strong> — Live readout of robot position (x,y) in meters and heading in degrees.</p>
+</li>
+</ol>
+<p>Use <strong>Run</strong> (1) to start a new episode and <strong>Fail</strong> (2) to terminate the current episode. Adjust obstacle count with the +/- buttons (3-4). Select input source: <strong>Keyboard</strong> (5), <strong>Gamepad</strong> (6), or <strong>Model</strong> (7). Toggle <strong>Enable Logging</strong> (8) to record training data and <strong>Robot View</strong> (9) to align display with robot heading. Open <strong>Preferences</strong> (10) to adjust advanced settings. When in Model mode, use <strong>Pick</strong> (11) to select a trained model and <strong>Reload</strong> (12) to refresh. The right panel shows live readouts: model status (13), episode/step counters (14), drive commands (15-16), whisker lengths (17), heading to target (18), collision status (19), and robot pose (20).</p>
+<hr>
+<h2 id="train-an-imitation-learning-model-mlp">Train an imitation learning model (MLP)</h2>
+<p>Use the MLP Trainer to teach a neural network to mimic your navigation behavior from recorded logs.</p>
+<h3 id="how-to-use_1">How to use</h3>
+<ol>
+<li>
+<p>First, generate training logs by running the simulator with logging enabled (see 'Launch and navigate the simulator' workflow).</p>
+</li>
+<li>
+<p>Run <code>python UTILITY_LAUNCHER.py</code> and click <strong>Open MLP Trainer</strong> (2) to open the <strong>MLP Trainer</strong>.</p>
+</li>
+<li>
+<p>In the <strong>MLP Trainer</strong>, click <strong>Select Log Files</strong> (1) and choose the JSONL files from the <code>logs/</code> directory.</p>
+</li>
+<li>
+<p>Configure network architecture: set <strong>Hidden Width</strong> (3), <strong>Hidden Layers</strong> (4), <strong>Epochs</strong> (5), <strong>Batch Size</strong>, and <strong>Learning Rate</strong> (6).</p>
+</li>
+<li>
+<p>Choose an activation function: <strong>ReLU</strong>, <strong>Tanh</strong>, or <strong>Leaky ReLU</strong> (7).</p>
+</li>
+<li>
+<p>Set the <strong>Save Dir</strong> (8) and optional <strong>Model Name</strong>, then click <strong>Train Models</strong> (9) to start training.</p>
+</li>
+<li>
+<p>The status area shows training progress. When complete, model JSON files are saved to the output directory.</p>
+</li>
+</ol>
+<h3 id="mlp-trainer">MLP Trainer</h3>
+<p>GUI for training multi-layer perceptron models from navigation logs using imitation learning.</p>
+<p><img alt="MLP Trainer" src="images/mlp_trainer.svg"></p>
+<p><strong>Labeled controls and displays:</strong></p>
+<ol>
+<li>
+<p><strong>Select Log Files</strong> — Opens file dialog to pick JSONL navigation log files.</p>
+</li>
+<li>
+<p><strong>File count</strong> — Shows how many log files are currently selected.</p>
+</li>
+<li>
+<p><strong>Hidden Width</strong> — Number of neurons in each hidden layer of the MLP.</p>
+</li>
+<li>
+<p><strong>Hidden Layers</strong> — Number of hidden layers in the neural network.</p>
+</li>
+<li>
+<p><strong>Epochs</strong> — Number of complete passes through the training dataset.</p>
+</li>
+<li>
+<p><strong>Learning Rate</strong> — Step size for gradient descent during training.</p>
+</li>
+<li>
+<p><strong>ReLU radio</strong> — Selects ReLU activation for hidden layers.</p>
+</li>
+<li>
+<p><strong>Save Dir</strong> — Folder where trained model JSON and metrics are saved.</p>
+</li>
+<li>
+<p><strong>Train Models</strong> — Starts imitation learning training for all modes found in logs.</p>
+</li>
+</ol>
+<p>Click <strong>Select Log Files</strong> (1) to choose one or more JSONL log files. The file count appears in the label (2). Configure the network architecture: <strong>Hidden Width</strong> (3) sets neurons per layer, <strong>Hidden Layers</strong> (4) sets depth. Set <strong>Epochs</strong> (5) and <strong>Learning Rate</strong> (6), then choose an activation function via the radio buttons (7). Specify the <strong>Save Dir</strong> (8) and optional <strong>Model Name</strong>, then click <strong>Train Models</strong> (9) to start training. The status area shows progress and saved file paths.</p>
+<hr>
+<h2 id="fine-tune-with-ppo-reinforcement-learning">Fine-tune with PPO reinforcement learning</h2>
+<p>Improve a trained imitation learning model using Proximal Policy Optimization in headless simulation.</p>
+<h3 id="how-to-use_2">How to use</h3>
+<ol>
+<li>
+<p>Run <code>python train_ppo.py</code> to open the <strong>PPO Trainer</strong>.</p>
+</li>
+<li>
+<p>Enter the path to a trained IL model in <strong>Warm-start IL model</strong> (1) or click <strong>Browse</strong> (2) to select it.</p>
+</li>
+<li>
+<p>Set <strong>Benchmark folder</strong> (3) and <strong>Output folder</strong> (4-5) for evaluation and model saving.</p>
+</li>
+<li>
+<p>Configure hyperparameters: <strong>Parallel envs</strong> (7), <strong>Steps per env</strong> (8), <strong>Total iterations</strong> (9), learning rates (10-11), and others.</p>
+</li>
+<li>
+<p>Click <strong>Start</strong> (12) to begin PPO training. The live plot (18) shows reward, success rates, and benchmark scores.</p>
+</li>
+<li>
+<p>Monitor the readouts: <strong>mean reward</strong> (13), <strong>train succ</strong> (14), <strong>baseline</strong> (15), and <strong>best score</strong> (16).</p>
+</li>
+<li>
+<p>Click <strong>Stop</strong> (13) to halt training early. The best model is saved automatically.</p>
+</li>
+</ol>
+<h3 id="ppo-trainer">PPO Trainer</h3>
+<p>GUI for fine-tuning navigation models using Proximal Policy Optimization with live plots.</p>
+<p><img alt="PPO Trainer" src="images/ppo_trainer.svg"></p>
+<p><strong>Labeled controls and displays:</strong></p>
+<ol>
+<li>
+<p><strong>Warm-start model</strong> — Path to a pre-trained IL model JSON to initialize PPO.</p>
+</li>
+<li>
+<p><strong>Browse warm-start</strong> — Opens file dialog to pick IL model JSON file.</p>
+</li>
+<li>
+<p><strong>Benchmark folder</strong> — Directory containing benchmark map files for evaluation.</p>
+</li>
+<li>
+<p><strong>Browse benchmark</strong> — Opens directory chooser for benchmark maps.</p>
+</li>
+<li>
+<p><strong>Output folder</strong> — Directory where PPO model checkpoints will be saved.</p>
+</li>
+<li>
+<p><strong>Browse output</strong> — Opens directory chooser for output models.</p>
+</li>
+<li>
+<p><strong>Parallel envs</strong> — Number of parallel simulation environments for training.</p>
+</li>
+<li>
+<p><strong>Steps per env</strong> — Simulation steps per environment per PPO iteration.</p>
+</li>
+<li>
+<p><strong>Total iterations</strong> — Number of PPO training iterations to run.</p>
+</li>
+<li>
+<p><strong>LR actor</strong> — Learning rate for the PPO actor network.</p>
+</li>
+<li>
+<p><strong>LR critic</strong> — Learning rate for the PPO critic network.</p>
+</li>
+<li>
+<p><strong>Start button</strong> — Starts the PPO training loop in a background thread.</p>
+</li>
+<li>
+<p><strong>Stop button</strong> — Stops the currently running training loop.</p>
+</li>
+<li>
+<p><strong>Mean reward</strong> — Live readout of mean episode reward (last 200 episodes).</p>
+</li>
+<li>
+<p><strong>Train success</strong> — Live readout of training success rate (0-1).</p>
+</li>
+<li>
+<p><strong>Baseline score</strong> — Benchmark score of the warm-start IL model.</p>
+</li>
+<li>
+<p><strong>Best score</strong> — Best PPO benchmark score achieved so far.</p>
+</li>
+<li>
+<p><strong>Training plot</strong> — Live matplotlib plot of reward, success rates, and benchmark scores.</p>
+</li>
+</ol>
+<p>Enter the <strong>Warm-start IL model</strong> path (1) or browse (2) to load a pre-trained imitation learning model. Set <strong>Benchmark folder</strong> (3) and <strong>Output folder</strong> (4-5). Configure hyperparameters: <strong>Parallel envs</strong> (7), <strong>Steps per env</strong> (8), <strong>Total iterations</strong> (9), learning rates (10-11), <strong>Clip range</strong> (12), <strong>Epochs</strong> (13), <strong>Minibatch size</strong> (14), obstacle counts (15-16), and <strong>Base seed</strong> (17). Choose <strong>Device</strong> (18) and click <strong>Start</strong> (12) to begin PPO training. The live plot (18) shows reward, success rates, and benchmark scores.</p>
+<hr>
+<h2 id="benchmark-and-evaluate-models">Benchmark and evaluate models</h2>
+<p>Generate standardized test maps and measure model performance with success rates and navigation times.</p>
+<h3 id="how-to-use_3">How to use</h3>
+<ol>
+<li>
+<p>Run <code>python UTILITY_LAUNCHER.py</code> and click <strong>Open Benchmark Utility</strong> (3) to open the <strong>Benchmark Evaluator</strong>.</p>
+</li>
+<li>
+<p>In the <strong>Benchmark Setup</strong> section, set <strong>Benchmark folder</strong> (1) and number of <strong># maps</strong> (3) to generate.</p>
+</li>
+<li>
+<p>Configure obstacle range with <strong>Obstacles min/max</strong> (4-5) and <strong>Base seed</strong> (6), then click <strong>Generate Benchmark Maps</strong> (7).</p>
+</li>
+<li>
+<p>For evaluation, enter the <strong>Model file</strong> path (8) or click <strong>Browse</strong> (9) to select a trained model JSON.</p>
+</li>
+<li>
+<p>Click <strong>Run Evaluation</strong> (10). Progress appears in the bar (11) and detailed results show in the text area.</p>
+</li>
+<li>
+<p>Results include success rate, mean navigation time, and benchmark score for the model.</p>
+</li>
+</ol>
+<h3 id="benchmark-evaluator">Benchmark Evaluator</h3>
+<p>GUI for generating benchmark maps and evaluating model performance on standardized scenarios.</p>
+<p><img alt="Benchmark Evaluator" src="images/benchmark_gui.svg"></p>
+<p><strong>Labeled controls and displays:</strong></p>
+<ol>
+<li>
+<p><strong>Benchmark folder</strong> — Directory where benchmark map files are stored.</p>
+</li>
+<li>
+<p><strong>Browse benchmark</strong> — Opens directory chooser for benchmark maps.</p>
+</li>
+<li>
+<p><strong># maps</strong> — Number of benchmark maps to generate.</p>
+</li>
+<li>
+<p><strong>Obstacles min</strong> — Minimum number of obstacles per benchmark map.</p>
+</li>
+<li>
+<p><strong>Obstacles max</strong> — Maximum number of obstacles per benchmark map.</p>
+</li>
+<li>
+<p><strong>Base seed</strong> — Random seed for reproducible map generation.</p>
+</li>
+<li>
+<p><strong>Generate Maps</strong> — Creates benchmark maps with specified parameters.</p>
+</li>
+<li>
+<p><strong>Model file</strong> — Path to trained model JSON file for evaluation.</p>
+</li>
+<li>
+<p><strong>Browse model</strong> — Opens file dialog to select model JSON.</p>
+</li>
+<li>
+<p><strong>Run Evaluation</strong> — Evaluates model on all benchmark maps and reports metrics.</p>
+</li>
+<li>
+<p><strong>Progress bar</strong> — Shows evaluation progress across benchmark maps.</p>
+</li>
+</ol>
+<p>Enter the <strong>Benchmark folder</strong> (1) or browse (2) to set where maps are stored. Set <strong># maps</strong> (3) to generate, plus obstacle min/max (4-5) and <strong>Base seed</strong> (6). Click <strong>Generate Benchmark Maps</strong> (7) to create standardized test scenarios. For evaluation, enter the <strong>Model file</strong> path (8) or browse (9), then click <strong>Run Evaluation</strong> (10). Progress appears in the bar (11) and detailed results show in the text area.</p>
+<hr>
+<hr>
+<h2 id="cli-and-script-reference">CLI and Script Reference</h2>
+<p>Although the primary tools are GUIs, you can also launch each module directly from the command line.</p>
+<h3 id="utility_launcherpy"><code>UTILITY_LAUNCHER.py</code></h3>
+<p>Desktop hub that opens other tools in separate processes.</p>
+<pre><code class="language-bash">python UTILITY_LAUNCHER.py
+</code></pre>
+<h3 id="simulatorpy"><code>simulator.py</code></h3>
+<p>Main navigation simulator with pygame rendering.</p>
+<pre><code class="language-bash">python simulator.py
+</code></pre>
+<p><strong>Interactive controls:</strong>
+- <code>W</code>/<code>S</code> or arrow keys: drive forward/backward
+- <code>A</code>/<code>D</code> or arrow keys: turn left/right
+- <code>Space</code>: toggle logging on/off
+- <code>R</code>: start new episode (Run)
+- <code>F</code>: fail current episode
+- <code>1</code>: switch to Keyboard input
+- <code>2</code>: switch to Gamepad input
+- <code>3</code>: switch to Model (autonomous) mode
+- <code>4</code>: Heading+Drive control mode
+- <code>5</code>: XY Strafe control mode
+- <code>6</code>: Hdg+Strafe control mode</p>
+<h3 id="train_mlppy"><code>train_mlp.py</code></h3>
+<p>Imitation learning trainer for MLPs.</p>
+<pre><code class="language-bash">python train_mlp.py
+</code></pre>
+<h3 id="train_ppopy"><code>train_ppo.py</code></h3>
+<p>PPO reinforcement learning fine-tuning.</p>
+<pre><code class="language-bash">python train_ppo.py
+</code></pre>
+<h3 id="benchmark_guipy"><code>benchmark_gui.py</code></h3>
+<p>Benchmark map generator and model evaluator.</p>
+<pre><code class="language-bash">python benchmark_gui.py
+</code></pre>
+<h3 id="headless_simpy"><code>headless_sim.py</code></h3>
+<p>Non-GUI simulation environment (used by PPO trainer).</p>
+<pre><code class="language-bash"># Typically called internally by train_ppo.py
+python headless_sim.py
+</code></pre>
+<hr>
+<h2 id="configuration">Configuration</h2>
+<h3 id="simulator-preferences-simulator_prefsjson">Simulator preferences (<code>simulator_prefs.json</code>)</h3>
+<p>The simulator saves user preferences to <code>simulator_prefs.json</code> in the project root. You can edit this file directly or use the <strong>Preferences</strong> dialog (button 10 in the simulator).</p>
+<table>
+<thead>
+<tr>
+<th>Setting</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>history_len</code></td>
+<td>Number of timesteps in the input window (1–10)</td>
+<td>1</td>
+</tr>
+<tr>
+<td><code>active_log_rate_hz</code></td>
+<td>Logging frequency when obstacles are near (1–30 Hz)</td>
+<td>10.0</td>
+</tr>
+<tr>
+<td><code>min_turn_rate_dps</code></td>
+<td>Minimum turn rate in degrees/sec (0–39)</td>
+<td>0.0</td>
+</tr>
+<tr>
+<td><code>inner_deadband_dps</code></td>
+<td>Deadband around zero turn rate (0–min_turn_rate)</td>
+<td>0.0</td>
+</tr>
+<tr>
+<td><code>hysteresis_band_dps</code></td>
+<td>Hysteresis band to prevent jitter (0–min_turn_rate)</td>
+<td>0.0</td>
+</tr>
+<tr>
+<td><code>obstacle_count</code></td>
+<td>Default number of obstacles per episode (1–50)</td>
+<td>random 3–10</td>
+</tr>
+<tr>
+<td><code>vis_mode</code></td>
+<td>Visualization mode: <code>all</code>, <code>action_radius</code>, <code>detected</code>, <code>sparse_sensing</code></td>
+<td><code>all</code></td>
+</tr>
+<tr>
+<td><code>input_mode</code></td>
+<td>Default input: <code>keyboard</code>, <code>gamepad</code>, <code>model</code></td>
+<td><code>keyboard</code></td>
+</tr>
+<tr>
+<td><code>logging_enabled</code></td>
+<td>Whether logging is on by default</td>
+<td><code>false</code></td>
+</tr>
+<tr>
+<td><code>robot_aligned_view</code></td>
+<td>Whether the view follows the robot heading</td>
+<td><code>true</code></td>
+</tr>
+<tr>
+<td><code>control_mode</code></td>
+<td>Default control: <code>heading_drive</code>, <code>xy_strafe</code>, <code>heading_strafe</code></td>
+<td><code>heading_drive</code></td>
+</tr>
+<tr>
+<td><code>place_against_wall</code></td>
+<td>Place target against a wall</td>
+<td><code>false</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="model-file-format">Model file format</h3>
+<p>Trained models are saved as JSON files with the following structure:</p>
+<pre><code class="language-json">{
+  &quot;schema_version&quot;: 2,
+  &quot;mode&quot;: &quot;heading_drive&quot;,
+  &quot;weights&quot;: [ [...], ...],      // List of weight matrices
+  &quot;biases&quot;: [ [...], ...],        // List of bias vectors
+  &quot;x_scale&quot;: { &quot;mean&quot;: [...], &quot;std&quot;: [...] },  // Input normalization
+  &quot;y_scale&quot;: { &quot;mean&quot;: [...], &quot;std&quot;: [...] },  // Output normalization
+  &quot;history_len&quot;: 1
+}
+</code></pre>
+<hr>
+<h2 id="troubleshooting">Troubleshooting</h2>
+<h3 id="simulator-fails-to-open">Simulator fails to open</h3>
+<ul>
+<li>Ensure <code>pygame</code> is installed (<code>pip install pygame</code>).</li>
+<li>Check that your display environment supports GUI applications (some headless servers require <code>xvfb</code>).</li>
+</ul>
+<h3 id="no-gamepad-detected">No gamepad detected</h3>
+<ul>
+<li>Verify the gamepad is connected before launching the simulator.</li>
+<li>On Linux, you may need to install <code>joystick</code> package and run <code>jstest</code> to verify.</li>
+</ul>
+<h3 id="mlp-training-crashes-with-shape-mismatch">MLP training crashes with “shape mismatch”</h3>
+<ul>
+<li>Make sure you are using logs generated with the same <code>history_len</code> as expected by the model.</li>
+<li>Re‑train with matching settings or delete old logs.</li>
+</ul>
+<h3 id="ppo-trainer-shows-cuda-out-of-memory">PPO trainer shows “CUDA out of memory”</h3>
+<ul>
+<li>Reduce <strong>Parallel envs</strong> (7) or <strong>Minibatch size</strong> (14).</li>
+<li>Switch <strong>Device</strong> (18) to <code>cpu</code> if you don’t have a compatible GPU.</li>
+</ul>
+<h3 id="benchmark-evaluation-is-slow">Benchmark evaluation is slow</h3>
+<ul>
+<li>Reduce the number of <strong># maps</strong> (3) or obstacle counts.</li>
+<li>Evaluation runs sequentially; consider using fewer maps for quick checks.</li>
+</ul>
+<h3 id="model-fails-to-load-mode-mismatch">Model fails to load (“Mode mismatch”)</h3>
+<ul>
+<li>The model JSON was trained for a different control mode.</li>
+<li>Re‑train a model for the desired mode or switch the simulator to the correct mode.</li>
+</ul>
+<p><em>Generated by <a href="https://github.com/auto-labeler">auto_labeler</a>.</em></p>
+</body></html>

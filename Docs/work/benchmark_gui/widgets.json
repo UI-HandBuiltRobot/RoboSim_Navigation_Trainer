@@ -1,0 +1,198 @@
+{
+  "screen_name": "benchmark_gui",
+  "image_width": 900,
+  "image_height": 700,
+  "scaling_factor": 1.9999999999999998,
+  "origin_x": 315,
+  "origin_y": 349,
+  "foreground_ok": true,
+  "widgets": [
+    {
+      "id": ".!labelframe.!label",
+      "cls": "Label",
+      "text": "Benchmark folder",
+      "x": 335,
+      "y": 395,
+      "w": 143,
+      "h": 29,
+      "callback": null,
+      "role": "display"
+    },
+    {
+      "id": ".!labelframe.!entry",
+      "cls": "Entry",
+      "text": null,
+      "x": 507,
+      "y": 394,
+      "w": 552,
+      "h": 31,
+      "callback": null,
+      "role": "control"
+    },
+    {
+      "id": ".!labelframe.!button",
+      "cls": "Button",
+      "text": "Browse",
+      "x": 1075,
+      "y": 392,
+      "w": 120,
+      "h": 35,
+      "callback": "1863920289600_pick_benchmark_folder",
+      "role": "control"
+    },
+    {
+      "id": ".!labelframe.!label2",
+      "cls": "Label",
+      "text": "# maps",
+      "x": 335,
+      "y": 439,
+      "w": 64,
+      "h": 29,
+      "callback": null,
+      "role": "display"
+    },
+    {
+      "id": ".!labelframe.!spinbox",
+      "cls": "Spinbox",
+      "text": null,
+      "x": 507,
+      "y": 439,
+      "w": 99,
+      "h": 30,
+      "callback": null,
+      "role": "control"
+    },
+    {
+      "id": ".!labelframe.!label3",
+      "cls": "Label",
+      "text": "Obstacles min/max",
+      "x": 335,
+      "y": 481,
+      "w": 156,
+      "h": 29,
+      "callback": null,
+      "role": "display"
+    },
+    {
+      "id": ".!labelframe.!frame.!spinbox",
+      "cls": "Spinbox",
+      "text": null,
+      "x": 507,
+      "y": 481,
+      "w": 99,
+      "h": 30,
+      "callback": null,
+      "role": "control"
+    },
+    {
+      "id": ".!labelframe.!frame.!label",
+      "cls": "Label",
+      "text": "to",
+      "x": 612,
+      "y": 481,
+      "w": 21,
+      "h": 29,
+      "callback": null,
+      "role": "display"
+    },
+    {
+      "id": ".!labelframe.!frame.!spinbox2",
+      "cls": "Spinbox",
+      "text": null,
+      "x": 639,
+      "y": 481,
+      "w": 99,
+      "h": 30,
+      "callback": null,
+      "role": "control"
+    },
+    {
+      "id": ".!labelframe.!label4",
+      "cls": "Label",
+      "text": "Base seed",
+      "x": 335,
+      "y": 524,
+      "w": 82,
+      "h": 29,
+      "callback": null,
+      "role": "display"
+    },
+    {
+      "id": ".!labelframe.!entry2",
+      "cls": "Entry",
+      "text": null,
+      "x": 507,
+      "y": 523,
+      "w": 146,
+      "h": 31,
+      "callback": null,
+      "role": "control"
+    },
+    {
+      "id": ".!labelframe.!button2",
+      "cls": "Button",
+      "text": "Generate Benchmark Maps",
+      "x": 335,
+      "y": 570,
+      "w": 860,
+      "h": 35,
+      "callback": "1863921907648_on_generate_maps",
+      "role": "control"
+    },
+    {
+      "id": ".!labelframe2.!label",
+      "cls": "Label",
+      "text": "Model file (.json)",
+      "x": 335,
+      "y": 669,
+      "w": 135,
+      "h": 29,
+      "callback": null,
+      "role": "display"
+    },
+    {
+      "id": ".!labelframe2.!entry",
+      "cls": "Entry",
+      "text": null,
+      "x": 486,
+      "y": 668,
+      "w": 573,
+      "h": 31,
+      "callback": null,
+      "role": "control"
+    },
+    {
+      "id": ".!labelframe2.!button",
+      "cls": "Button",
+      "text": "Browse",
+      "x": 1075,
+      "y": 666,
+      "w": 120,
+      "h": 35,
+      "callback": "1863921909056_pick_model",
+      "role": "control"
+    },
+    {
+      "id": ".!labelframe2.!button2",
+      "cls": "Button",
+      "text": "Run Evaluation",
+      "x": 335,
+      "y": 717,
+      "w": 860,
+      "h": 35,
+      "callback": "1863921907328_on_run_eval",
+      "role": "control"
+    },
+    {
+      "id": ".!labelframe2.!progressbar",
+      "cls": "Progressbar",
+      "text": null,
+      "x": 335,
+      "y": 762,
+      "w": 860,
+      "h": 22,
+      "callback": null,
+      "role": "display"
+    }
+  ]
+}
